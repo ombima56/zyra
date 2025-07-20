@@ -2,63 +2,54 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Keypair } from 'stellar-sdk'
 import { PrismaClient } from '@/generated/prisma'
+import bcrypt from 'bcryptjs'
 
 const prisma = new PrismaClient()
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json()
-    const { email, phone } = body
+    const { email, phone, password } = body
 
-    console.log('Received request:', { email, phone })
-
-    // Check if email already exists
-    const existingEmail = await prisma.user.findUnique({
-      where: { email },
-    })
-
-    if (existingEmail) {
+    if (!email || !phone || !password) {
       return NextResponse.json(
-        { error: 'Email already exists' },
+        { error: 'Email, phone, and password are required' },
         { status: 400 }
       )
+    }
+
+    // Check if email already exists
+    const existingEmail = await prisma.user.findUnique({ where: { email } })
+    if (existingEmail) {
+      return NextResponse.json({ error: 'Email already exists' }, { status: 400 })
     }
 
     // Check if phone already exists
-    const existingPhone = await prisma.user.findUnique({
-      where: { phone },
-    })
-
+    const existingPhone = await prisma.user.findUnique({ where: { phone } })
     if (existingPhone) {
-      return NextResponse.json(
-        { error: 'Phone number already exists' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'Phone number already exists' }, { status: 400 })
     }
+
+    // Hash the password
+    const hashedPassword = await bcrypt.hash(password, 10)
 
     // Generate keypair
     const keypair = Keypair.random()
     const publicKey = keypair.publicKey()
     const secret = keypair.secret()
 
-    console.log('Generated keypair:', { publicKey })
-
-    // Create new user
+    // Create user
     const user = await prisma.user.create({
       data: {
         email,
         phone,
+        password: hashedPassword, // 🔐 save hashed password
         publicKey,
         secret,
       },
     })
 
-    console.log('User created:', user)
-
-    return NextResponse.json(
-      { message: 'User created', user },
-      { status: 200 }
-    )
+    return NextResponse.json({ message: 'User created', user }, { status: 200 })
   } catch (error) {
     console.error('Error saving user:', error)
     return NextResponse.json(
