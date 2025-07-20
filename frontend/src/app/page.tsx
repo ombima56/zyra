@@ -5,19 +5,40 @@ export default function Home() {
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [wallet, setWallet] = useState<{ publicKey: string; secret: string } | null>(null)
-  
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const res = await fetch('/api/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, phone }),
-    })
-    const data = await res.json()
-    setWallet({
-      publicKey: data.publicKey,
-      secret: data.secret,
-    })
+    
+    try {
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, phone }),
+      })
+      
+      const data = await res.json()
+      console.log('API Response:', data) // Debug log
+      
+      // Check if the response was successful
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to create wallet')
+      }
+      
+      // Check if user object exists in response
+      if (data.user && data.user.publicKey && data.user.secret) {
+        setWallet({
+          publicKey: data.user.publicKey,
+          secret: data.user.secret,
+        })
+      } else {
+        console.error('Invalid response structure:', data)
+        throw new Error('Invalid response from server')
+      }
+    } catch (error) {
+      console.error('Error creating wallet:', error)
+      // Optionally add error state handling here
+      alert('Failed to create wallet. Please try again.')
+    }
   }
 
   return (
