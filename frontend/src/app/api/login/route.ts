@@ -1,4 +1,5 @@
 // src/app/api/login/route.ts
+
 import { NextRequest, NextResponse } from 'next/server'
 import { PrismaClient } from '@/generated/prisma'
 import bcrypt from 'bcryptjs'
@@ -7,17 +8,18 @@ const prisma = new PrismaClient()
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, phone, password } = await req.json()
+    const { identifier, password } = await req.json()
 
-    if (!password || (!email && !phone)) {
-      return NextResponse.json({ error: 'Email or phone and password required' }, { status: 400 })
+    if (!identifier || !password) {
+      return NextResponse.json({ error: 'Email/Phone and password required' }, { status: 400 })
     }
 
+    // Try finding user by email or phone
     const user = await prisma.user.findFirst({
       where: {
         OR: [
-          { email: email || undefined },
-          { phone: phone || undefined },
+          { email: identifier },
+          { phone: identifier },
         ],
       },
     })
@@ -35,6 +37,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       message: 'Login successful',
       user: {
+        id: user.id,
         publicKey: user.publicKey,
         secret: user.secret,
       },
