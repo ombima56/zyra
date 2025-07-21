@@ -1,10 +1,8 @@
 'use client'
-
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 
 export default function Dashboard() {
-  const router = useRouter()
   const [wallet, setWallet] = useState<{ publicKey: string; secret: string } | null>(null)
   const [balance, setBalance] = useState<string | null>(null)
   const [transactions, setTransactions] = useState<any[]>([])
@@ -12,15 +10,14 @@ export default function Dashboard() {
   const [amount, setAmount] = useState('')
   const [message, setMessage] = useState('')
   const [showSendForm, setShowSendForm] = useState(false)
-  const [showProfileDropdown, setShowProfileDropdown] = useState(false)
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
 
-  // load wallet from localStorage
+  const router = useRouter()
+
   useEffect(() => {
     const storedWallet = localStorage.getItem('wallet')
     if (storedWallet) {
       setWallet(JSON.parse(storedWallet))
-    } else {
-      router.push('/login')
     }
   }, [])
 
@@ -35,8 +32,6 @@ export default function Dashboard() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       setMessage('✅ Money sent!')
-      setRecipient('')
-      setAmount('')
     } catch (err) {
       setMessage('❌ ' + (err as Error).message)
     }
@@ -59,53 +54,58 @@ export default function Dashboard() {
     router.push('/login')
   }
 
+  const getUsername = () => {
+  if (!wallet?.publicKey) return 'User'
+  const email = wallet.publicKey
+  console.log(email)
+  const name = email.split('@')[0] // get 'quinter' from 'quinter@example.com'
+  return name.charAt(0).toUpperCase() + name.slice(1) // Capitalize: 'Quinter'
+}
+
   return (
-    <main className="min-h-screen bg-gray-900 text-white p-6 relative">
-      {/* Top Right Profile */}
-      <div className="absolute top-4 right-6">
+    <main className="min-h-screen bg-gray-900 text-white p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold">💳 Dashboard</h1>
+
         <div className="relative">
-          <button
-            onClick={() => setShowProfileDropdown(!showProfileDropdown)}
-            className="w-10 h-10 bg-white rounded-full text-black font-bold"
+          <p
+            className="cursor-pointer text-sm hover:underline"
+            onClick={() => setShowProfileMenu(!showProfileMenu)}
           >
-            {wallet?.publicKey?.charAt(0).toUpperCase() || 'U'}
-          </button>
-          {showProfileDropdown && (
-            <div className="absolute right-0 mt-2 w-32 bg-white text-black rounded shadow">
-              <button
+            👤 {getUsername()}
+          </p>
+          {showProfileMenu && (
+            <div className="absolute right-0 mt-1 bg-white text-black rounded shadow p-2">
+              <p
+                className="cursor-pointer hover:underline"
                 onClick={handleLogout}
-                className="block w-full text-left px-4 py-2 hover:bg-gray-200"
               >
                 Logout
-              </button>
+              </p>
             </div>
           )}
         </div>
       </div>
 
-      <h1 className="text-3xl font-bold mb-6">💳 Dashboard</h1>
-
-      {/* Send Money Button */}
       <div className="mb-4">
         <button
           onClick={() => setShowSendForm(!showSendForm)}
           className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-700"
         >
-          {showSendForm ? 'Hide Send Form' : 'Send Money'}
+          Send Money
         </button>
 
-        {/* Send Form */}
         {showSendForm && (
           <div className="mt-4">
             <input
               placeholder="Recipient Phone"
-              className="block w-full p-2 rounded mt-2 text-black"
+              className="block w-full p-2 rounded mt-2 bg-gray-800 text-white placeholder-gray-400"
               value={recipient}
               onChange={(e) => setRecipient(e.target.value)}
             />
             <input
               placeholder="Amount"
-              className="block w-full p-2 rounded mt-2 text-black"
+              className="block w-full p-2 rounded mt-2 bg-gray-800 text-white placeholder-gray-400"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
             />
@@ -113,24 +113,13 @@ export default function Dashboard() {
               onClick={handleSendMoney}
               className="mt-3 bg-blue-600 px-4 py-2 rounded hover:bg-blue-700"
             >
-              Send
+              Confirm Send
             </button>
-            {message && (
-              <p className="mt-2 text-green-300 flex justify-between items-center">
-                {message}
-                <button
-                  onClick={() => setMessage('')}
-                  className="ml-4 px-2 py-1 text-sm text-red-300"
-                >
-                  ✖
-                </button>
-              </p>
-            )}
+            {message && <p className="mt-2 text-green-300">{message}</p>}
           </div>
         )}
       </div>
 
-      {/* Balance Section */}
       <div className="mt-6">
         <h2 className="text-xl font-semibold">Check Balance</h2>
         <button
@@ -142,7 +131,6 @@ export default function Dashboard() {
         {balance && <p className="mt-2">Balance: ${balance}</p>}
       </div>
 
-      {/* Transactions Section */}
       <div className="mt-6">
         <h2 className="text-xl font-semibold">Transactions</h2>
         <button
