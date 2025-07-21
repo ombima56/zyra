@@ -1,12 +1,13 @@
 'use client'
 import Link from 'next/link'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 
 export default function Login() {
-  const [identifier, setIdentifier] = useState('') // can be email or phone
+  const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
-  const [wallet, setWallet] = useState<{ publicKey: string; secret: string } | null>(null)
   const [error, setError] = useState('')
+  const router = useRouter()
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -15,18 +16,17 @@ export default function Login() {
       const res = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, password }), // 👈 send identifier (email or phone)
+        body: JSON.stringify({ identifier, password }),
       })
 
       const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Login failed')
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Login failed')
-      }
+      // Optional: save user data in localStorage (you can use JWT/session instead later)
+      localStorage.setItem('wallet', JSON.stringify(data.user))
 
-      setWallet(data.user)
-      setIdentifier('')
-      setPassword('')
+      // ✅ Redirect to dashboard
+      router.push('/dashboard')
     } catch (err) {
       setError((err as Error).message)
     }
@@ -50,14 +50,14 @@ export default function Login() {
           placeholder="Email or Phone"
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}
-          className="w-full p-3 rounded-md bg-white/20 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full p-3 rounded-md bg-white/20 text-white placeholder-white/70"
         />
         <input
           type="password"
           placeholder="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-3 rounded-md bg-white/20 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full p-3 rounded-md bg-white/20 text-white placeholder-white/70"
         />
         <button
           type="submit"
@@ -65,27 +65,8 @@ export default function Login() {
         >
           Login
         </button>
-
-        {wallet && (
-          <div className="bg-white/20 text-white p-4 mt-4 rounded-lg">
-            <p className="font-semibold text-green-300 mb-2">✅ Wallet Found!</p>
-            <div className="space-y-2">
-              <div>
-                <strong>Public Key:</strong>
-                <div className="mt-1 p-2 bg-black/30 rounded text-sm font-mono break-all">
-                  {wallet.publicKey}
-                </div>
-              </div>
-              <div>
-                <strong>Secret Key:</strong>
-                <div className="mt-1 p-2 bg-black/30 rounded text-sm font-mono break-all">
-                  {wallet.secret}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </form>
+
       <p className="text-white mt-4">
         Don’t have an account?{' '}
         <Link href="/register" className="text-blue-400 hover:underline font-semibold">
