@@ -27,8 +27,23 @@ Zyra is a next-generation social-finance platform that lets users seamlessly con
     cd frontend
     npm install
     ```
+3. ** Install stellar-sdk**
+    ```bash
+    npm install stellar-sdk
+    ```
+
+    Or if you use Yarn:
+
+    ```bash
+    yarn add stellar-sdk
+    ```
 
 3.  **Set up the database:**
+    Generate Prisma node_module
+    ```bash 
+    npx prisma generate
+    ```
+
     ```bash
     npx prisma migrate dev --name init
     ```
