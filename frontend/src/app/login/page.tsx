@@ -1,78 +1,83 @@
-'use client'
-import Link from 'next/link'
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+'use client';
 
-export default function Login() {
-  const [identifier, setIdentifier] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
-  const router = useRouter()
+import { useState } from 'react';
+import { Keypair, Transaction, Networks } from 'stellar-sdk';
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError('')
+export default function Send() {
+  const [secretKey, setSecretKey] = useState('');
+  const [recipient, setRecipient] = useState('');
+  const [amount, setAmount] = useState('');
+  const [isSent, setIsSent] = useState(false);
+
+  const sendPayment = async () => {
     try {
-      const res = await fetch('/api/login', {
+      const keypair = Keypair.fromSecret(secretKey);
+      const response = await fetch(`/api/stellar/transfer`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier, password }),
-      })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: keypair.publicKey(),
+          recipient,
+          amount,
+        }),
+      });
 
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Login failed')
-
-      // Optional: save user data in localStorage (you can use JWT/session instead later)
-      localStorage.setItem('wallet', JSON.stringify(data.user))
-
-      // ✅ Redirect to dashboard
-      router.push('/dashboard')
-    } catch (err) {
-      setError((err as Error).message)
+      if (response.ok) {
+        setIsSent(true);
+      } else {
+        console.error('Error sending payment:', await response.json());
+      }
+    } catch (error) {
+      console.error('Error sending payment:', error);
     }
-  }
+  };
 
   return (
-    <main className="min-h-screen flex flex-col justify-center items-center bg-gray-900 p-6">
-      <h1 className="text-4xl font-extrabold text-white mb-6">Login to Wallet</h1>
-
-      <form
-        onSubmit={handleLogin}
-        className="bg-white/10 backdrop-blur-md p-8 rounded-xl shadow-md w-full max-w-md space-y-4"
-      >
-        {error && (
-          <div className="text-red-400 bg-red-900/30 p-3 rounded text-center font-semibold">
-            ⚠️ {error}
-          </div>
-        )}
-        <input
-          type="text"
-          placeholder="Email or Phone"
-          value={identifier}
-          onChange={(e) => setIdentifier(e.target.value)}
-          className="w-full p-3 rounded-md bg-white/20 text-white placeholder-white/70"
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-3 rounded-md bg-white/20 text-white placeholder-white/70"
-        />
-        <button
-          type="submit"
-          className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-full font-semibold transition"
-        >
-          Login
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Send Payment</h1>
+      <div className="space-y-4">
+        <div>
+          <label htmlFor="secretKey" className="block text-sm font-medium text-gray-700">
+            Secret Key
+          </label>
+          <input
+            type="password"
+            id="secretKey"
+            value={secretKey}
+            onChange={(e) => setSecretKey(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <div>
+          <label htmlFor="recipient" className="block text-sm font-medium text-gray-700">
+            Recipient Public Key
+          </label>
+          <input
+            type="text"
+            id="recipient"
+            value={recipient}
+            onChange={(e) => setRecipient(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <div>
+          <label htmlFor="amount" className="block text-sm font-medium text-gray-700">
+            Amount
+          </label>
+          <input
+            type="text"
+            id="amount"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <button onClick={sendPayment} className="btn btn-primary" disabled={isSent}>
+          {isSent ? 'Payment Sent' : 'Send Payment'}
         </button>
-      </form>
-
-      <p className="text-white mt-4">
-        Don’t have an account?{' '}
-        <Link href="/register" className="text-blue-400 hover:underline font-semibold">
-          Register
-        </Link>
-      </p>
-    </main>
-  )
+      </div>
+    </div>
+  );
 }

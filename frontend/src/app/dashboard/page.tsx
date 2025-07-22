@@ -1,155 +1,96 @@
-'use client'
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+'use client';
+
+import { useState } from 'react';
 
 export default function Dashboard() {
-  const [wallet, setWallet] = useState<{ publicKey: string; secret: string } | null>(null)
-  const [balance, setBalance] = useState<string | null>(null)
-  const [transactions, setTransactions] = useState<any[]>([])
-  const [recipient, setRecipient] = useState('')
-  const [amount, setAmount] = useState('')
-  const [message, setMessage] = useState('')
-  const [showSendForm, setShowSendForm] = useState(false)
-  const [showProfileMenu, setShowProfileMenu] = useState(false)
+  const [publicKey, setPublicKey] = useState('');
+  const [balance, setBalance] = useState<string | null>(null);
+  const [to, setTo] = useState('');
+  const [amount, setAmount] = useState('');
 
-  const router = useRouter()
-
-  useEffect(() => {
-    const storedWallet = localStorage.getItem('wallet')
-    if (storedWallet) {
-      setWallet(JSON.parse(storedWallet))
-    }
-  }, [])
-
-  const handleSendMoney = async () => {
-    setMessage('')
+  const checkBalance = async () => {
     try {
-      const res = await fetch('/api/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recipient, amount }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error)
-      setMessage('✅ Money sent!')
-    } catch (err) {
-      setMessage('❌ ' + (err as Error).message)
+      const response = await fetch(`/api/stellar?publicKey=${publicKey}`);
+      const data = await response.json();
+      setBalance(data.balance);
+    } catch (error) {
+      console.error('Error fetching balance:', error);
     }
-  }
+  };
 
-  const handleCheckBalance = async () => {
-    const res = await fetch('/api/balance')
-    const data = await res.json()
-    setBalance(data.balance)
-  }
-
-  const handleTransactions = async () => {
-    const res = await fetch('/api/transactions')
-    const data = await res.json()
-    setTransactions(data.transactions)
-  }
-
-  const handleLogout = () => {
-    localStorage.removeItem('wallet')
-    router.push('/login')
-  }
-
-  const getUsername = () => {
-  if (!wallet?.publicKey) return 'User'
-  const email = wallet.publicKey
-  console.log(email)
-  const name = email.split('@')[0] // get 'quinter' from 'quinter@example.com'
-  return name.charAt(0).toUpperCase() + name.slice(1) // Capitalize: 'Quinter'
-}
+  const handleTransfer = async () => {
+    try {
+      await fetch('/api/stellar', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ from: publicKey, to, amount }),
+      });
+      alert('Transfer successful!');
+    } catch (error) {
+      console.error('Error transferring funds:', error);
+      alert('Transfer failed!');
+    }
+  };
 
   return (
-    <main className="min-h-screen bg-gray-900 text-white p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">💳 Dashboard</h1>
-
-        <div className="relative">
-          <p
-            className="cursor-pointer text-sm hover:underline"
-            onClick={() => setShowProfileMenu(!showProfileMenu)}
-          >
-            👤 {getUsername()}
-          </p>
-          {showProfileMenu && (
-            <div className="absolute right-0 mt-1 bg-white text-black rounded shadow p-2">
-              <p
-                className="cursor-pointer hover:underline"
-                onClick={handleLogout}
-              >
-                Logout
-              </p>
-            </div>
-          )}
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
+      <div className="space-y-4">
+        <div>
+          <label htmlFor="publicKey" className="block text-sm font-medium text-gray-700">
+            Your Public Key
+          </label>
+          <input
+            type="text"
+            id="publicKey"
+            value={publicKey}
+            onChange={(e) => setPublicKey(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
         </div>
-      </div>
-
-      <div className="mb-4">
-        <button
-          onClick={() => setShowSendForm(!showSendForm)}
-          className="bg-blue-600 px-4 py-2 rounded hover:bg-blue-700"
-        >
-          Send Money
+        <button onClick={checkBalance} className="btn btn-primary">
+          Check Balance
         </button>
-
-        {showSendForm && (
-          <div className="mt-4">
-            <input
-              placeholder="Recipient Phone"
-              className="block w-full p-2 rounded mt-2 bg-gray-800 text-white placeholder-gray-400"
-              value={recipient}
-              onChange={(e) => setRecipient(e.target.value)}
-            />
-            <input
-              placeholder="Amount"
-              className="block w-full p-2 rounded mt-2 bg-gray-800 text-white placeholder-gray-400"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-            <button
-              onClick={handleSendMoney}
-              className="mt-3 bg-blue-600 px-4 py-2 rounded hover:bg-blue-700"
-            >
-              Confirm Send
-            </button>
-            {message && <p className="mt-2 text-green-300">{message}</p>}
+        {balance !== null && (
+          <div>
+            <h2 className="text-xl font-semibold">Balance</h2>
+            <p>{balance}</p>
           </div>
         )}
       </div>
 
-      <div className="mt-6">
-        <h2 className="text-xl font-semibold">Check Balance</h2>
-        <button
-          onClick={handleCheckBalance}
-          className="mt-2 bg-green-600 px-4 py-2 rounded hover:bg-green-700"
-        >
-          Show Balance
+      <div className="mt-8 space-y-4">
+        <h2 className="text-2xl font-bold">Transfer Funds</h2>
+        <div>
+          <label htmlFor="to" className="block text-sm font-medium text-gray-700">
+            Recipient Public Key
+          </label>
+          <input
+            type="text"
+            id="to"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <div>
+          <label htmlFor="amount" className="block text-sm font-medium text-gray-700">
+            Amount
+          </label>
+          <input
+            type="text"
+            id="amount"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+          />
+        </div>
+        <button onClick={handleTransfer} className="btn btn-primary">
+          Transfer
         </button>
-        {balance && <p className="mt-2">Balance: ${balance}</p>}
       </div>
-
-      <div className="mt-6">
-        <h2 className="text-xl font-semibold">Transactions</h2>
-        <button
-          onClick={handleTransactions}
-          className="mt-2 bg-yellow-600 px-4 py-2 rounded hover:bg-yellow-700"
-        >
-          Show Transactions
-        </button>
-        <ul className="mt-4 space-y-2">
-          {transactions.map((tx, i) => (
-            <li key={i} className="bg-white/10 p-2 rounded">
-              <p>From: {tx.fromPhone || 'Unknown'}</p>
-              <p>To: {tx.toPhone || tx.to}</p>
-              <p>Amount: {tx.amount}</p>
-              <p>Date: {tx.date}</p>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </main>
-  )
+    </div>
+  );
 }
