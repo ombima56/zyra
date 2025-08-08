@@ -34,7 +34,6 @@ export default function DashboardPage() {
   const [showDepositForm, setShowDepositForm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Replaced useRouter with window.location for navigation in this environment
   const router = {
     push: (path: string) => {
       window.location.href = path;
@@ -161,7 +160,11 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col items-center p-4 md:p-10 font-sans">
-      <Header username={getUsername()} onLogout={handleLogout} />
+      <Header
+        username={getUsername()}
+        onLogout={handleLogout}
+        publicKey={wallet?.publicKey || ""}
+      />
       <Balance
         balance={balance}
         isLoading={isLoading}
