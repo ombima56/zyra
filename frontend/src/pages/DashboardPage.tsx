@@ -9,6 +9,7 @@ import TransactionList from "@/components/dashboard/TransactionList";
 
 // Types for a cleaner codebase
 type Wallet = {
+  id: number; // Add user ID to the wallet type
   publicKey: string;
   secret: string;
 };
@@ -109,27 +110,35 @@ export default function DashboardPage() {
   };
 
   const handleDeposit = async () => {
-    setMessage("");
+    if (!wallet) {
+      setMessage('❌ Wallet not found. Please log in again.');
+      return;
+    }
+    setMessage('');
     setIsLoading(true);
     try {
-      // This is the core API call for the deposit
-      // Mocking the API call
-      console.log(
-        "Deposit request initiated for phone:",
-        depositPhone,
-        "Amount:",
-        amount
-      );
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate network delay
-      setMessage(
-        `✅ Deposit request initiated for ${amount} XLM. Check your phone for a prompt.`
-      );
-      setDepositPhone("");
-      setAmount("");
-      // No need to refresh immediately as the M-Pesa callback will trigger the Stellar transaction
-      // and a real-time listener (like a websocket or a `poll` from Horizon) would handle the update.
+      const res = await fetch('/api/mpesa/stk-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount,
+          phone: depositPhone,
+          userId: wallet.id,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.details || data.error || 'Failed to initiate STK Push');
+      }
+
+      setMessage(`✅ STK Push initiated for ${amount} KES. Check your phone to complete the transaction.`);
+      setDepositPhone('');
+      setAmount('');
+
     } catch (err) {
-      setMessage("❌ " + (err as Error).message);
+      setMessage(`❌ ${(err as Error).message}`);
     } finally {
       setIsLoading(false);
     }
