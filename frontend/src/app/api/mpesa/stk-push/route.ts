@@ -27,6 +27,8 @@ export async function POST(req: NextRequest) {
   try {
     const { amount, phone, userId } = await req.json();
 
+    console.log("Received phone number:", phone)
+
     if (!amount || !phone || !userId) {
       return NextResponse.json({ error: 'Amount, phone, and userId are required' }, { status: 400 });
     }
@@ -46,16 +48,18 @@ export async function POST(req: NextRequest) {
     const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, -3);
     const password = Buffer.from(`${shortCode}${passkey}${timestamp}`).toString('base64');
 
+    const formattedPhone = phone.startsWith('+') ? phone.substring(1) : phone;
+
     const payload = {
       BusinessShortCode: shortCode,
       Password: password,
       Timestamp: timestamp,
       TransactionType: 'CustomerPayBillOnline', // or 'CustomerBuyGoodsOnline'
       Amount: amount,
-      PartyA: phone,
+      PartyA: formattedPhone,
       PartyB: shortCode,
-      PhoneNumber: phone,
-      CallBackURL: `${process.env.NEXT_PUBLIC_URL}/api/mpesa/callback?secret=${process.env.MPESA_CALLBACK_SECRET}`,
+      PhoneNumber: formattedPhone,
+      CallBackURL: `${process.env.MPESA_CALLBACK_URL}`,
       AccountReference: `Zyra Deposit ${userId}`,
       TransactionDesc: 'Deposit to Zyra Wallet',
     };
@@ -83,7 +87,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'STK Push initiated successfully' });
   } catch (err) {
     console.error('Error initiating STK Push:', err);
-    const errorMessage = (err as any).response?.data?.errorMessage || (err as Error).message || 'Unknown error';
+    const errorMessage = (err as any).response?.data || (err as Error).message || 'Unknown error';
     return NextResponse.json({ error: 'Failed to initiate STK Push', details: errorMessage }, { status: 500 });
   }
 }
