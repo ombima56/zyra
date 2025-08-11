@@ -6,12 +6,7 @@ import Actions from "@/components/dashboard/Actions";
 import SendMoneyForm from "@/components/dashboard/SendMoneyForm";
 import DepositForm from "@/components/dashboard/DepositForm";
 import TransactionList from "@/components/dashboard/TransactionList";
-
-// Types for a cleaner codebase
-type Wallet = {
-  publicKey: string;
-  secret: string;
-};
+import { connectWallet, getBalance, transfer, deposit } from "../lib/stellar";
 
 type TransactionRecord = {
   id: string;
@@ -22,8 +17,10 @@ type TransactionRecord = {
   to?: string;
 };
 
+type Freighter = typeof import("@stellar/freighter-api");
+
 export default function DashboardPage() {
-  const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [publicKey, setPublicKey] = useState<string | null>(null);
   const [balance, setBalance] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
   const [recipient, setRecipient] = useState("");
@@ -33,35 +30,91 @@ export default function DashboardPage() {
   const [showSendForm, setShowSendForm] = useState(false);
   const [showDepositForm, setShowDepositForm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-
-  const router = {
-    push: (path: string) => {
-      window.location.href = path;
-    },
-  };
+  const [freighter, setFreighter] = useState<Freighter | null>(null);
+  const [freighterError, setFreighterError] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedWallet = localStorage.getItem("wallet");
-    if (storedWallet) {
-      const parsedWallet = JSON.parse(storedWallet) as Wallet;
-      setWallet(parsedWallet);
-      // Automatically fetch balance and transactions on load
-      fetchData(parsedWallet.publicKey);
-    } else {
-      router.push("/login");
-    }
+    const loadFreighter = async () => {
+      try {
+        const module = await import("@stellar/freighter-api");
+        setFreighter(module);
+        setFreighterError(null);
+      } catch (error) {
+        console.error("Failed to load Freighter:", error);
+        setFreighterError(
+          "Failed to load Freighter wallet. Please install the Freighter browser extension."
+        );
+      }
+    };
+
+    loadFreighter();
   }, []);
 
-  // Centralized data fetching function to avoid code duplication
-  const fetchData = async (publicKey: string) => {
+  const handleConnect = async () => {
+    if (!freighter) {
+      setMessage(
+        "❌ Freighter wallet not loaded yet. Please wait or refresh the page."
+      );
+      return;
+    }
+
+    try {
+      setMessage("");
+      setIsLoading(true);
+      const pk = await connectWallet(freighter);
+      setPublicKey(pk);
+      if (pk) {
+        await fetchData(pk);
+      }
+    } catch (error) {
+      console.error("Connection error:", error);
+      setMessage(`❌ ${(error as Error).message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Helper function to format the balance from a raw bigint to a
+   * string with a fixed number of decimal places for display.
+   */
+  const formatBalance = (rawBalance: bigint, decimals: number): string => {
+    if (rawBalance === BigInt(0)) {
+      return "0.00";
+    }
+
+    // Convert the BigInt to a string
+    const balanceStr = rawBalance.toString();
+    const decimalPointPosition = balanceStr.length - decimals;
+
+    let formatted;
+    if (decimalPointPosition <= 0) {
+      const leadingZeros = "0".repeat(Math.abs(decimalPointPosition));
+      formatted = `0.${leadingZeros}${balanceStr}`;
+    } else {
+      formatted =
+        balanceStr.slice(0, decimalPointPosition) +
+        "." +
+        balanceStr.slice(decimalPointPosition);
+    }
+
+    const [integerPart, fractionalPart] = formatted.split(".");
+    const twoDecimalPlaces = fractionalPart ? fractionalPart.slice(0, 2) : "00";
+
+    return `${integerPart}.${twoDecimalPlaces}`;
+  };
+
+  const fetchData = async (pk: string) => {
     setIsLoading(true);
     try {
-      // Mocking API calls for a functioning UI without external libraries
-      // Simulating a balance fetch
-      const mockBalance = (Math.random() * 1000).toFixed(2);
-      setBalance(mockBalance);
+      // Note: getBalance no longer needs freighter parameter
+      const balanceResult = (await getBalance(pk)) as bigint;
 
-      // Simulating transaction fetching
+      // **Modified line:** Use the helper function to format the balance
+      const formattedBalance = formatBalance(balanceResult, 7);
+      setBalance(formattedBalance);
+
+      // Mock transactions for now
       const mockTransactions: TransactionRecord[] = [
         {
           id: "mock-tx-1",
@@ -69,39 +122,39 @@ export default function DashboardPage() {
           amount: "50.00",
           asset_code: "XLM",
           from: "GDJ3Y...",
-          to: publicKey,
+          to: pk,
         },
         {
           id: "mock-tx-2",
-          source_account: publicKey,
+          source_account: pk,
           amount: "15.50",
           asset_code: "XLM",
-          from: publicKey,
+          from: pk,
           to: "GB245...",
         },
       ];
       setTransactions(mockTransactions);
+      setMessage(""); // Clear any previous error messages
     } catch (error) {
       console.error("Error fetching data:", error);
-      setMessage("Failed to load wallet data.");
+      setMessage(`❌ ${(error as Error).message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleSendMoney = async () => {
+    if (!publicKey || !freighter) return;
     setMessage("");
     setIsLoading(true);
     try {
-      // Mocking API call for sending money
-      // This is a placeholder for the real API call
-      console.log("Sending money to:", recipient, "Amount:", amount);
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate network delay
+      await transfer(publicKey, recipient, amount, freighter);
       setMessage("✅ Money sent successfully!");
       setRecipient("");
       setAmount("");
-      if (wallet) fetchData(wallet.publicKey); // Refresh data
+      await fetchData(publicKey);
     } catch (err) {
+      console.error("Transfer error:", err);
       setMessage("❌ " + (err as Error).message);
     } finally {
       setIsLoading(false);
@@ -109,41 +162,27 @@ export default function DashboardPage() {
   };
 
   const handleDeposit = async () => {
+    if (!publicKey || !freighter) return;
     setMessage("");
     setIsLoading(true);
     try {
-      // This is the core API call for the deposit
-      // Mocking the API call
-      console.log(
-        "Deposit request initiated for phone:",
-        depositPhone,
-        "Amount:",
-        amount
-      );
-      await new Promise((resolve) => setTimeout(resolve, 1000)); // Simulate network delay
+      await deposit(publicKey, amount, freighter);
       setMessage(
-        `✅ Deposit request initiated for ${amount} XLM. Check your phone for a prompt.`
+        `✅ Deposit request initiated for ${amount} tokens. Please approve the transaction in your wallet.`
       );
-      setDepositPhone("");
       setAmount("");
-      // No need to refresh immediately as the M-Pesa callback will trigger the Stellar transaction
-      // and a real-time listener (like a websocket or a `poll` from Horizon) would handle the update.
+      await fetchData(publicKey);
     } catch (err) {
+      console.error("Deposit error:", err);
       setMessage("❌ " + (err as Error).message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem("wallet");
-    router.push("/login");
-  };
-
   const getUsername = () => {
-    if (!wallet?.publicKey) return "User";
-    // A simplified way to get a user identifier from the public key
-    return wallet.publicKey.slice(0, 4) + "..." + wallet.publicKey.slice(-4);
+    if (!publicKey) return "User";
+    return publicKey.slice(0, 4) + "..." + publicKey.slice(-4);
   };
 
   const toggleSendForm = () => {
@@ -158,22 +197,76 @@ export default function DashboardPage() {
     setMessage("");
   };
 
+  // Show error if Freighter failed to load
+  if (freighterError) {
+    return (
+      <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col items-center justify-center p-4">
+        <h1 className="text-2xl font-bold mb-4">Wallet Error</h1>
+        <p className="text-red-400 mb-4 text-center max-w-md">
+          {freighterError}
+        </p>
+        <p className="text-gray-400 text-sm text-center max-w-md">
+          Please install the Freighter browser extension and make sure it
+          supports Soroban smart contracts.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  if (!publicKey) {
+    return (
+      <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col items-center justify-center p-4">
+        <h1 className="text-2xl font-bold mb-4">Welcome to Zyra</h1>
+        {message && (
+          <p className="text-red-400 mb-4 text-center max-w-md">{message}</p>
+        )}
+        <button
+          onClick={handleConnect}
+          disabled={!freighter || isLoading}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded disabled:bg-gray-500"
+        >
+          {isLoading
+            ? "Connecting..."
+            : freighter
+            ? "Connect Wallet"
+            : "Loading Wallet..."}
+        </button>
+        {!freighter && (
+          <p className="text-gray-400 text-sm mt-2">
+            Loading Freighter wallet...
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 flex flex-col items-center p-4 md:p-10 font-sans">
       <Header
         username={getUsername()}
-        onLogout={handleLogout}
-        publicKey={wallet?.publicKey || ""}
+        onLogout={() => setPublicKey(null)}
+        publicKey={publicKey || ""}
       />
       <Balance
         balance={balance}
         isLoading={isLoading}
-        onRefresh={() => wallet && fetchData(wallet.publicKey)}
+        onRefresh={() => publicKey && fetchData(publicKey)}
       />
       <Actions
         onDepositClick={toggleDepositForm}
         onSendClick={toggleSendForm}
       />
+      {message && (
+        <div className="w-full max-w-md mb-4 p-3 rounded bg-gray-800">
+          <p className="text-sm">{message}</p>
+        </div>
+      )}
       {showDepositForm && (
         <DepositForm
           amount={amount}
@@ -197,7 +290,7 @@ export default function DashboardPage() {
       <TransactionList
         transactions={transactions}
         isLoading={isLoading}
-        onRefresh={() => wallet && fetchData(wallet.publicKey)}
+        onRefresh={() => publicKey && fetchData(publicKey)}
       />
     </div>
   );
