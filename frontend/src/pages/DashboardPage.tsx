@@ -127,13 +127,16 @@ export default function DashboardPage() {
         }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.details || data.error || 'Failed to initiate STK Push');
+      const text = await res.text();
+      try {
+        const data = JSON.parse(text);
+        if (!res.ok) {
+          throw new Error(data.details || data.error || 'Failed to initiate STK Push');
+        }
+        setMessage(`✅ STK Push initiated for ${amount} KES. Check your phone to complete the transaction.`);
+      } catch (error) {
+        throw new Error(text);
       }
-
-      setMessage(`✅ STK Push initiated for ${amount} KES. Check your phone to complete the transaction.`);
       setDepositPhone('');
       setAmount('');
 
