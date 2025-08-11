@@ -6,14 +6,7 @@ import prisma from '@/lib/prisma';
 export async function POST(req: NextRequest) {
   console.log('M-Pesa Callback Received');
 
-  // 1. Verify the secret from the query parameter
-  const url = new URL(req.url);
-  const secret = url.searchParams.get('secret');
-
-  if (secret !== process.env.MPESA_CALLBACK_SECRET) {
-    console.error('Invalid M-Pesa callback secret');
-    return NextResponse.json({ error: 'Invalid secret' }, { status: 401 });
-  }
+  
 
   try {
     const callbackData = await req.json();
