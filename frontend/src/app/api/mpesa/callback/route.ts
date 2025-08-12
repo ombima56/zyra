@@ -1,0 +1,88 @@
+
+// src/app/api/mpesa/callback/route.ts
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+
+export async function POST(req: NextRequest) {
+  console.log('M-Pesa Callback Received');
+
+  
+
+  try {
+    const callbackData = await req.json();
+    console.log('Callback Data:', JSON.stringify(callbackData, null, 2));
+
+    const { Body } = callbackData;
+    const { stkCallback } = Body;
+
+    if (!stkCallback) {
+      console.error('Invalid callback format: stkCallback not found');
+      return NextResponse.json({ error: 'Invalid callback format' }, { status: 400 });
+    }
+
+    const { MerchantRequestID, CheckoutRequestID, ResultCode, ResultDesc, CallbackMetadata } = stkCallback;
+
+    // 2. Find the transaction in the database
+    const transaction = await prisma.transaction.findFirst({
+      where: {
+        OR: [
+          { merchantRequestID: MerchantRequestID },
+          { checkoutRequestID: CheckoutRequestID },
+        ],
+      },
+    });
+
+    if (!transaction) {
+      console.error(`Transaction not found for MerchantRequestID: ${MerchantRequestID} or CheckoutRequestID: ${CheckoutRequestID}`);
+      return NextResponse.json({ message: 'Transaction not found, but callback acknowledged' });
+    }
+
+    // 3. Update the transaction and user balance
+    let status: 'SUCCESS' | 'FAILED' = 'FAILED';
+    let mpesaReceiptNumber: string | undefined = undefined;
+
+    if (ResultCode === 0) {
+      status = 'SUCCESS';
+      if (CallbackMetadata) {
+        const item = CallbackMetadata.Item.find((i: any) => i.Name === 'MpesaReceiptNumber');
+        if (item) {
+          mpesaReceiptNumber = item.Value;
+        }
+      }
+
+      console.log(`Transaction ${transaction.id} successful. M-Pesa Receipt: ${mpesaReceiptNumber}`);
+
+      // Update user balance
+      await prisma.user.update({
+        where: { id: transaction.userId },
+        data: {
+          balance: {
+            increment: transaction.amount,
+          },
+        },
+      });
+
+      console.log(`User ${transaction.userId} balance updated with ${transaction.amount}`);
+
+    } else {
+      console.error(`Transaction ${transaction.id} failed. Reason: ${ResultDesc}`);
+    }
+
+    await prisma.transaction.update({
+      where: { id: transaction.id },
+      data: {
+        status,
+        resultCode: ResultCode,
+        resultDesc: ResultDesc,
+        mpesaReceiptNumber: mpesaReceiptNumber?.toString(),
+      },
+    });
+
+    return NextResponse.json({ message: 'Callback handled successfully' });
+
+  } catch (err) {
+    console.error('Error handling M-Pesa callback:', err);
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    return NextResponse.json({ error: 'Failed to handle callback', details: errorMessage }, { status: 500 });
+  }
+}

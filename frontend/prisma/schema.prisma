@@ -9,11 +9,31 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  email     String   @unique
-  phone     String   @unique
-  password  String   
-  publicKey String
-  secret    String
-  createdAt DateTime @default(now())
+  id           Int           @id @default(autoincrement())
+  email        String        @unique
+  phone        String        @unique
+  password     String 
+  publicKey    String
+  secret       String
+  balance      Float         @default(0)
+  createdAt    DateTime      @default(now())
+  transactions Transaction[]
+}
+
+model Transaction {
+  id                    Int       @id @default(autoincrement())
+  userId                Int
+  user                  User      @relation(fields: [userId], references: [id])
+  amount                Float
+  phone                 String
+  merchantRequestID     String?   @unique
+  checkoutRequestID     String?   @unique
+  resultCode            Int?
+  resultDesc            String?
+  mpesaReceiptNumber    String?
+  transactionDate       String?
+  status                String    @default("PENDING") // PENDING, SUCCESS, FAILED
+  type                  String    @default("DEPOSIT") // DEPOSIT, WITHDRAWAL
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 }
