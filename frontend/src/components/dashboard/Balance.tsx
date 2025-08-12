@@ -15,13 +15,14 @@ export default function Balance({
         <h2 className="text-xl font-semibold text-gray-300">Total Balance</h2>
         <button
           onClick={onRefresh}
-          className="text-blue-400 hover:text-blue-300 transition-colors"
+          className="text-blue-400 hover:text-blue-300 transition-colors p-2 rounded-lg hover:bg-gray-700/50 focus:outline-none focus:ring-2 focus:ring-blue-400/50"
           disabled={isLoading}
+          aria-label="Refresh balance"
         >
-          {/* Updated SVG for a simpler refresh icon */}
+          {/* Simple circular refresh icon */}
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            className={`h-6 w-6 ${isLoading ? "animate-spin" : ""}`}
+            className={`h-5 w-5 ${isLoading ? "animate-spin" : ""}`}
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -30,7 +31,7 @@ export default function Balance({
             <path
               strokeLinecap="round"
               strokeLinejoin="round"
-              d="M4 4v5h.582m15.836 0H20v-5m0 11v5h-.581m0 0a9.003 9.003 0 01-16.205-.003m.002-.685a9.003 9.003 0 0116.205.685M4 16v5h.582m0 0a9.003 9.003 0 0015.836 0M3 12h18"
+              d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"
             />
           </svg>
         </button>
