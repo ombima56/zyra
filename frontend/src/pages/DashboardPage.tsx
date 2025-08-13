@@ -6,6 +6,7 @@ import Actions from "@/components/dashboard/Actions";
 import SendMoneyForm from "@/components/dashboard/SendMoneyForm";
 import DepositForm from "@/components/dashboard/DepositForm";
 import TransactionList from "@/components/dashboard/TransactionList";
+import { connectWallet, getBalance, transfer } from "@/lib/stellar";
 
 // Types for a cleaner codebase
 type Wallet = {
@@ -160,20 +161,20 @@ export default function DashboardPage() {
   };
 
   const handleDeposit = async () => {
-    if (!wallet) {
-      setMessage('❌ Wallet not found. Please log in again.');
+    if (!publicKey) {
+      setMessage("❌ Wallet not found. Please log in again.");
       return;
     }
-    setMessage('');
+    setMessage("");
     setIsLoading(true);
     try {
-      const res = await fetch('/api/mpesa/stk-push', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/mpesa/stk-push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           amount,
           phone: depositPhone,
-          userId: wallet.id,
+          userId: publicKey,
         }),
       });
 
@@ -181,15 +182,18 @@ export default function DashboardPage() {
       try {
         const data = JSON.parse(text);
         if (!res.ok) {
-          throw new Error(data.details || data.error || 'Failed to initiate STK Push');
+          throw new Error(
+            data.details || data.error || "Failed to initiate STK Push"
+          );
         }
-        setMessage(`✅ STK Push initiated for ${amount} KES. Check your phone to complete the transaction.`);
+        setMessage(
+          `✅ STK Push initiated for ${amount} KES. Check your phone to complete the transaction.`
+        );
       } catch (error) {
         throw new Error(text);
       }
-      setDepositPhone('');
-      setAmount('');
-
+      setDepositPhone("");
+      setAmount("");
     } catch (err) {
       setMessage(`❌ ${(err as Error).message}`);
     } finally {
