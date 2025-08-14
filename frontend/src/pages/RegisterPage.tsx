@@ -32,7 +32,7 @@ export default function RegisterPage() {
       router.push("/login");
     } catch (error: any) {
       console.error("Registration error:", error);
-      setMessage(`❌ ${error.message}`);
+      setMessage(` ${error.message}`);
     } finally {
       setIsLoading(false);
     }
