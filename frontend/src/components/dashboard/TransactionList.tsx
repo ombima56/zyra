@@ -1,11 +1,4 @@
-type TransactionRecord = {
-  id: string;
-  source_account: string;
-  amount: string;
-  asset_code?: string;
-  from?: string;
-  to?: string;
-};
+import { TransactionRecord } from "@/pages/DashboardPage";
 
 type TransactionListProps = {
   transactions: TransactionRecord[];
@@ -18,10 +11,6 @@ export function TransactionList({
   isLoading,
   onRefresh,
 }: TransactionListProps) {
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 4)}...${address.slice(-4)}`;
-  };
-
   return (
     <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mb-6 sm:mb-8">
       <div className="bg-gray-800/80 backdrop-blur-sm border border-gray-700/50 rounded-2xl shadow-xl overflow-hidden">
@@ -107,42 +96,64 @@ export function TransactionList({
             </div>
           ) : transactions.length > 0 ? (
             <div className="space-y-3 sm:space-y-4">
-              {transactions.map((tx, i) => (
+              {transactions.map((tx) => (
                 <div
-                  key={i}
+                  key={tx.id}
                   className="bg-gray-900/60 border border-gray-700/30 rounded-xl p-4 sm:p-5 hover:bg-gray-900/80 transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 flex-1">
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <div
+                        className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                          tx.type === "DEPOSIT"
+                            ? "bg-gradient-to-br from-green-500 to-emerald-600"
+                            : "bg-gradient-to-br from-red-500 to-rose-600"
+                        }`}
+                      >
                         <svg
                           className="w-5 h-5 sm:w-6 sm:h-6 text-white"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"
-                          />
+                          {tx.type === "DEPOSIT" ? (
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 4v16m8-8H4"
+                            />
+                          ) : (
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M20 12H4"
+                            />
+                          )}
                         </svg>
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm sm:text-base font-semibold text-white truncate">
-                          Transaction
+                          {tx.type}
                         </p>
-                        <p className="text-xs sm:text-sm text-gray-400 font-mono">
-                          {formatAddress(tx.id)}
+                        <p className="text-xs sm:text-sm text-gray-400">
+                          {new Date(tx.createdAt).toLocaleString()}
                         </p>
                       </div>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-sm sm:text-lg font-bold text-green-400">
-                        +${tx.amount}
+                      <p
+                        className={`text-sm sm:text-lg font-bold ${
+                          tx.type === "DEPOSIT"
+                            ? "text-green-400"
+                            : "text-red-400"
+                        }`}
+                      >
+                        {tx.type === "DEPOSIT" ? "+" : "-"}$
+                        {tx.amount.toFixed(2)}
                       </p>
-                      <p className="text-xs text-gray-500">{tx.asset_code}</p>
+                      <p className="text-xs text-gray-500">{tx.status}</p>
                     </div>
                   </div>
                 </div>
