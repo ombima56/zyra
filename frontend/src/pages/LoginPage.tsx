@@ -1,17 +1,31 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [formMessage, setFormMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const router = useRouter();
+
+  // Effect to manage the message's duration
+  useEffect(() => {
+    if (formMessage && formMessage.type === "error") {
+      const timer = setTimeout(() => {
+        setFormMessage(null);
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [formMessage]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage("");
+    setFormMessage(null);
     setIsLoading(true);
 
     try {
@@ -21,13 +35,16 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      const data = await res.json();
-
       if (!res.ok) {
-        throw new Error(data.error || "Login failed");
+        if (res.status === 401) {
+          throw new Error("Incorrect email or password. Please try again.");
+        } else {
+          throw new Error("Login failed. An unexpected server error occurred.");
+        }
       }
 
-      // Call the new API route to decrypt the secret key on the server
+      const data = await res.json();
+
       const decryptRes = await fetch("/api/decrypt-secret", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -37,26 +54,33 @@ export default function LoginPage() {
         }),
       });
 
-      const decryptData = await decryptRes.json();
-
       if (!decryptRes.ok) {
-        throw new Error(decryptData.error || "Failed to decrypt secret");
+        if (decryptRes.status === 400) {
+          throw new Error(
+            "Unable to securely log you in. Please verify your password."
+          );
+        } else {
+          throw new Error("An unexpected error occurred. Please try again.");
+        }
       }
 
+      const decryptData = await decryptRes.json();
       const decryptedSecret = decryptData.decryptedSecret;
 
-      // In a real application, you would store publicKey and decryptedSecret
-      // in a secure client-side storage (e.g., sessionStorage, localStorage with encryption)
-      // or a global state management solution (e.g., Context API, Redux).
-      // For this example, we'll just log them and redirect.
       sessionStorage.setItem("publicKey", data.publicKey);
       sessionStorage.setItem("secretKey", decryptedSecret);
 
-      setMessage(" Login successful! Redirecting...");
-      router.push("/dashboard");
+      setFormMessage({
+        type: "success",
+        text: "✅ Login successful! Redirecting...",
+      });
+
+      setTimeout(() => {
+        router.push("/dashboard");
+      }, 1500);
     } catch (error: any) {
       console.error("Login error:", error);
-      setMessage(`❌ ${error.message}`);
+      setFormMessage({ type: "error", text: `❌ ${error.message}` });
     } finally {
       setIsLoading(false);
     }
@@ -67,15 +91,15 @@ export default function LoginPage() {
       <div className="max-w-md w-full text-center bg-gray-800 p-8 rounded-xl shadow-lg">
         <h1 className="text-3xl font-bold mb-6">Login to Zrya</h1>
 
-        {message && (
+        {formMessage && (
           <div
-            className={`p-4 rounded-xl mb-6 ${
-              message.includes("sucess")
+            className={`p-4 rounded-xl mb-6 text-sm ${
+              formMessage.type === "success"
                 ? "bg-green-500/10 border border-green-500/20 text-green-400"
                 : "bg-red-500/10 border border-red-500/20 text-red-400"
             }`}
           >
-            <p className="text-sm">{message}</p>
+            <p>{formMessage.text}</p>
           </div>
         )}
 
