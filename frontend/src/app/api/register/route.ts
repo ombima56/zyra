@@ -1,69 +1,48 @@
-// src/app/api/register/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { Keypair } from "stellar-sdk";
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
+import { createKeypair } from "@/lib/stellar";
+import CryptoJS from "crypto-js";
 import bcrypt from "bcryptjs";
 
-export async function POST(req: NextRequest) {
+const encrypt = (text: string, secret: string): string => {
+  return CryptoJS.AES.encrypt(text, secret).toString();
+};
+
+export async function POST(request: Request) {
   try {
-    const body = await req.json();
-    const { email, phone, password } = body;
+    const { email, phone, password } = await request.json();
 
     if (!email || !phone || !password) {
       return NextResponse.json(
-        { error: "Email, phone, and password are required" },
+        { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    // Check if email already exists
-    const existingEmail = await prisma.user.findUnique({ where: { email } });
-    if (existingEmail) {
-      return NextResponse.json(
-        { error: "Email already exists" },
-        { status: 400 }
-      );
-    }
-
-    // Check if phone already exists
-    const existingPhone = await prisma.user.findUnique({ where: { phone } });
-    if (existingPhone) {
-      return NextResponse.json(
-        { error: "Phone number already exists" },
-        { status: 400 }
-      );
-    }
-
-    // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Generate keypair
-    const keypair = Keypair.random();
-    const publicKey = keypair.publicKey();
-    const secret = keypair.secret();
+    const { publicKey, secret } = createKeypair();
 
-    // Create user
+    const encryptedSecret = encrypt(secret, password);
+
     const user = await prisma.user.create({
       data: {
         email,
         phone,
-        password: hashedPassword, // 🔐 save hashed password
+        password: hashedPassword,
         publicKey,
-        secret,
+        secret: encryptedSecret,
       },
     });
 
     return NextResponse.json(
-      { message: "User created", user },
-      { status: 200 }
+      { message: "User registered successfully", publicKey: user.publicKey },
+      { status: 201 }
     );
-  } catch (error) {
-    console.error("Error saving user:", error);
+  } catch (error: any) {
+    console.error("Registration error:", error);
     return NextResponse.json(
-      {
-        message: "Internal server error",
-        error: error instanceof Error ? error.message : "Unknown error",
-      },
+      { error: error.message || "Internal server error" },
       { status: 500 }
     );
   }
