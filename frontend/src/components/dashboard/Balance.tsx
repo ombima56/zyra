@@ -4,40 +4,57 @@ type BalanceProps = {
   onRefresh: () => void;
 };
 
-export default function Balance({
-  balance,
-  isLoading,
-  onRefresh,
-}: BalanceProps) {
+export function Balance({ balance, isLoading, onRefresh }: BalanceProps) {
   return (
-    <div className="w-full max-w-xl bg-gray-800 p-6 rounded-3xl shadow-lg mb-8 border border-gray-700">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-xl font-semibold text-gray-300">Total Balance</h2>
-        <button
-          onClick={onRefresh}
-          className="text-blue-400 hover:text-blue-300 transition-colors"
-          disabled={isLoading}
-        >
-          {/* Updated SVG for a simpler refresh icon */}
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className={`h-6 w-6 ${isLoading ? "animate-spin" : ""}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2}
+    <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mb-6 sm:mb-8">
+      <div className="bg-gradient-to-br from-gray-800/80 to-gray-900/80 backdrop-blur-sm border border-gray-700/50 rounded-2xl sm:rounded-3xl p-6 sm:p-8 lg:p-10 shadow-2xl">
+        <div className="flex items-center justify-between mb-4 sm:mb-6">
+          <div>
+            <h2 className="text-sm sm:text-base font-medium text-gray-400 mb-1">
+              Total Balance
+            </h2>
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-xs text-green-400 font-medium">Live</span>
+            </div>
+          </div>
+          <button
+            onClick={onRefresh}
+            className="text-gray-400 hover:text-white transition-all duration-200 p-2 sm:p-3 rounded-xl hover:bg-gray-700/50 focus:outline-none focus:ring-2 focus:ring-blue-500/50 disabled:opacity-50"
+            disabled={isLoading}
+            aria-label="Refresh balance"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M4 4v5h.582m15.836 0H20v-5m0 11v5h-.581m0 0a9.003 9.003 0 01-16.205-.003m.002-.685a9.003 9.003 0 0116.205.685M4 16v5h.582m0 0a9.003 9.003 0 0015.836 0M3 12h18"
-            />
-          </svg>
-        </button>
+            <svg
+              className={`h-5 w-5 sm:h-6 sm:w-6 ${
+                isLoading ? "animate-spin" : ""
+              }`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99"
+              />
+            </svg>
+          </button>
+        </div>
+
+        <div className="text-center sm:text-left">
+          <p className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-green-400 to-blue-500 bg-clip-text text-transparent leading-tight">
+            {isLoading ? (
+              <span className="animate-pulse">•••</span>
+            ) : (
+              `$${balance || "0.00"}`
+            )}
+          </p>
+          <p className="text-sm sm:text-base text-gray-400 mt-2">USD</p>
+        </div>
       </div>
-      <p className="text-5xl md:text-6xl font-extrabold text-white">
-        {isLoading ? "..." : `$${balance || "0.00"}`}
-      </p>
     </div>
   );
 }
+
+export default Balance;

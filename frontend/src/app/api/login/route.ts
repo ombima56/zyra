@@ -1,50 +1,40 @@
-// src/app/api/login/route.ts
-
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 
-export async function POST(req: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const { identifier, password } = await req.json();
+    const { email, password } = await request.json();
 
-    if (!identifier || !password) {
+    if (!email || !password) {
       return NextResponse.json(
-        { error: "Email/Phone and password required" },
+        { error: "Missing email or password" },
         { status: 400 }
       );
     }
 
-    // Try finding user by email or phone
-    const user = await prisma.user.findFirst({
-      where: {
-        OR: [{ email: identifier }, { phone: identifier }],
-      },
+    const user = await prisma.user.findUnique({
+      where: { email },
     });
 
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+      return NextResponse.json(
+        { error: "Invalid credentials" },
+        { status: 401 }
+      );
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-
-    if (!isPasswordValid) {
-      return NextResponse.json({ error: "Invalid password" }, { status: 401 });
-    }
-
-    return NextResponse.json({
-      message: "Login successful",
-      user: {
-        id: user.id,
-        publicKey: user.publicKey,
-        secret: user.secret,
-      },
-    });
-  } catch (err) {
     return NextResponse.json(
       {
-        error: err instanceof Error ? err.message : "Unknown error",
+        publicKey: user.publicKey,
+        encryptedSecret: user.secret,
       },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    console.error("Login error:", error);
+    return NextResponse.json(
+      { error: error.message || "Internal server error" },
       { status: 500 }
     );
   }
