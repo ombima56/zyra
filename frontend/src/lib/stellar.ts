@@ -10,6 +10,7 @@ import {
   TimeoutInfinite,
   Operation,
   rpc,
+  Transaction,
 } from "@stellar/stellar-sdk";
 
 // The contract ID is essential for all contract interactions.
@@ -34,33 +35,14 @@ function bigIntToI128ScVal(value: bigint): xdr.ScVal {
 }
 
 /**
- * Connects to the user's Freighter wallet and retrieves their public key.
+ * Creates a new Stellar keypair.
  */
-export const connectWallet = async (freighter: any): Promise<string | null> => {
-  try {
-    if (!freighter) {
-      throw new Error(
-        "Freighter wallet is not available. Please install the Freighter extension."
-      );
-    }
-
-    // Check if already connected
-    if (await freighter.isConnected()) {
-      return freighter.getPublicKey();
-    }
-
-    // Request connection
-    await freighter.requestAccess();
-
-    if (await freighter.isConnected()) {
-      return freighter.getPublicKey();
-    }
-
-    return null;
-  } catch (error) {
-    console.error("Wallet connection error:", error);
-    throw error;
-  }
+export const createKeypair = (): { publicKey: string; secret: string } => {
+  const keypair = Keypair.random();
+  return {
+    publicKey: keypair.publicKey(),
+    secret: keypair.secret(),
+  };
 };
 
 /**
@@ -123,17 +105,15 @@ export const getBalance = async (userAddress: string): Promise<bigint> => {
 };
 
 /**
- * Creates and submits a Soroban transaction using Freighter for signing.
+ * Creates and submits a Soroban transaction using a secret key for signing.
  */
 async function submitSorobanTransaction(
   userAddress: string,
-  operation: xdr.Operation,
-  freighter: any
+  secretKey: string,
+  operation: xdr.Operation
 ): Promise<void> {
   try {
-    if (!freighter) {
-      throw new Error("Freighter wallet is not available.");
-    }
+    const keypair = Keypair.fromSecret(secretKey);
 
     // Get the user's account details
     const accountResponse = await server.getAccount(userAddress);
@@ -148,30 +128,11 @@ async function submitSorobanTransaction(
       .setTimeout(TimeoutInfinite)
       .build();
 
-    // Simulate the transaction first
-    const simulationResponse = await server.simulateTransaction(transaction);
-
-    if (rpc.Api.isSimulationError(simulationResponse)) {
-      throw new Error(`Simulation failed: ${simulationResponse.error}`);
-    }
-
-    // Prepare the transaction for signing
-    const preparedTransaction = rpc.assembleTransaction(
-      transaction,
-      simulationResponse
-    );
-
-    // Sign the transaction using Freighter
-    const signedTransaction = await freighter.signTransaction(
-      preparedTransaction,
-      {
-        networkPassphrase,
-        accountToSign: userAddress,
-      }
-    );
+    // Sign the transaction directly
+    transaction.sign(keypair);
 
     // Submit the signed transaction
-    const transactionResponse = await server.sendTransaction(signedTransaction);
+    const transactionResponse = await server.sendTransaction(transaction);
 
     if (transactionResponse.status === "ERROR") {
       throw new Error(`Transaction failed: ${transactionResponse.errorResult}`);
@@ -200,7 +161,7 @@ export const transfer = async (
   from: string,
   to: string,
   amount: string,
-  freighter: any
+  secretKey: string
 ): Promise<void> => {
   try {
     if (!contractId) {
@@ -213,8 +174,6 @@ export const transfer = async (
     const toAddress = new Address(to);
     const amountToTransfer = BigInt(amount);
 
-    // The correct way to create a contract address is to pass the contract ID string
-    // directly to the Address constructor. The Address class handles the type internally.
     const contractAddress = new Address(contractId);
     const operation = Operation.invokeHostFunction({
       func: xdr.HostFunction.hostFunctionTypeInvokeContract(
@@ -231,7 +190,7 @@ export const transfer = async (
       auth: [],
     });
 
-    await submitSorobanTransaction(from, operation, freighter);
+    await submitSorobanTransaction(from, secretKey, operation);
   } catch (error) {
     console.error("Error transferring tokens:", error);
     throw error;
@@ -244,7 +203,7 @@ export const transfer = async (
 export const deposit = async (
   depositor: string,
   amount: string,
-  freighter: any
+  secretKey: string
 ): Promise<void> => {
   try {
     if (!contractId) {
@@ -256,8 +215,6 @@ export const deposit = async (
     const depositorAddress = new Address(depositor);
     const amountToDeposit = BigInt(amount);
 
-    // The correct way to create a contract address is to pass the contract ID string
-    // directly to the Address constructor. The Address class handles the type internally.
     const contractAddress = new Address(contractId);
     const operation = Operation.invokeHostFunction({
       func: xdr.HostFunction.hostFunctionTypeInvokeContract(
@@ -273,7 +230,7 @@ export const deposit = async (
       auth: [],
     });
 
-    await submitSorobanTransaction(depositor, operation, freighter);
+    await submitSorobanTransaction(depositor, secretKey, operation);
   } catch (error) {
     console.error("Error depositing tokens:", error);
     throw error;
