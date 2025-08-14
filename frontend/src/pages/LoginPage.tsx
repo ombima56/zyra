@@ -1,83 +1,121 @@
 "use client";
-import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-  const [identifier, setIdentifier] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError("");
+    setMessage("");
+    setIsLoading(true);
+
     try {
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier, password }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Login failed");
 
-      // Optional: save user data in localStorage (you can use JWT/session instead later)
-      localStorage.setItem("wallet", JSON.stringify(data.user));
+      if (!res.ok) {
+        throw new Error(data.error || "Login failed");
+      }
 
-      // ✅ Redirect to dashboard
+      // Call the new API route to decrypt the secret key on the server
+      const decryptRes = await fetch("/api/decrypt-secret", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          encryptedSecret: data.encryptedSecret,
+          password,
+        }),
+      });
+
+      const decryptData = await decryptRes.json();
+
+      if (!decryptRes.ok) {
+        throw new Error(decryptData.error || "Failed to decrypt secret");
+      }
+
+      const decryptedSecret = decryptData.decryptedSecret;
+
+      // In a real application, you would store publicKey and decryptedSecret
+      // in a secure client-side storage (e.g., sessionStorage, localStorage with encryption)
+      // or a global state management solution (e.g., Context API, Redux).
+      // For this example, we'll just log them and redirect.
+      sessionStorage.setItem("publicKey", data.publicKey);
+      sessionStorage.setItem("secretKey", decryptedSecret);
+
+      setMessage(" Login successful! Redirecting...");
       router.push("/dashboard");
-    } catch (err) {
-      setError((err as Error).message);
+    } catch (error: any) {
+      console.error("Login error:", error);
+      setMessage(`❌ ${error.message}`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen flex flex-col justify-center items-center bg-gray-900 p-6">
-      <h1 className="text-4xl font-extrabold text-white mb-6">
-        Login to Wallet
-      </h1>
+    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100 flex flex-col items-center justify-center p-4">
+      <div className="max-w-md w-full text-center bg-gray-800 p-8 rounded-xl shadow-lg">
+        <h1 className="text-3xl font-bold mb-6">Login to Zrya</h1>
 
-      <form
-        onSubmit={handleLogin}
-        className="bg-white/10 backdrop-blur-md p-8 rounded-xl shadow-md w-full max-w-md space-y-4"
-      >
-        {error && (
-          <div className="text-red-400 bg-red-900/30 p-3 rounded text-center font-semibold">
-            ⚠️ {error}
+        {message && (
+          <div
+            className={`p-4 rounded-xl mb-6 ${
+              message.includes("sucess")
+                ? "bg-green-500/10 border border-green-500/20 text-green-400"
+                : "bg-red-500/10 border border-red-500/20 text-red-400"
+            }`}
+          >
+            <p className="text-sm">{message}</p>
           </div>
         )}
-        <input
-          type="text"
-          placeholder="Email or Phone"
-          value={identifier}
-          onChange={(e) => setIdentifier(e.target.value)}
-          className="w-full p-3 rounded-md bg-white/20 text-white placeholder-white/70"
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-3 rounded-md bg-white/20 text-white placeholder-white/70"
-        />
-        <button
-          type="submit"
-          className="w-full bg-blue-500 hover:bg-blue-600 text-white py-2 rounded-full font-semibold transition"
-        >
-          Login
-        </button>
-      </form>
 
-      <p className="text-white mt-4">
-        Don’t have an account?{" "}
-        <Link
-          href="/register"
-          className="text-blue-400 hover:underline font-semibold"
-        >
-          Register
-        </Link>
-      </p>
-    </main>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <input
+              type="email"
+              placeholder="Email"
+              className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <input
+              type="password"
+              placeholder="Password"
+              className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
+          >
+            {isLoading ? "Logging in..." : "Login"}
+          </button>
+        </form>
+
+        <p className="mt-6 text-gray-400 text-sm">
+          Don't have an account?{" "}
+          <a href="/register" className="text-blue-500 hover:underline">
+            Register here
+          </a>
+        </p>
+      </div>
+    </div>
   );
 }
