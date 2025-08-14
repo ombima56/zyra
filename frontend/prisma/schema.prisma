@@ -13,8 +13,8 @@ model User {
   email        String        @unique
   phone        String        @unique
   password     String 
-  publicKey    String
-  secret       String
+  publicKey    String        @unique
+  secret       String // Stores encrypted secret key
   balance      Float         @default(0)
   createdAt    DateTime      @default(now())
   transactions Transaction[]
