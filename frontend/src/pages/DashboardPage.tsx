@@ -6,7 +6,7 @@ import Actions from "@/components/dashboard/Actions";
 import SendMoneyForm from "@/components/dashboard/SendMoneyForm";
 import DepositForm from "@/components/dashboard/DepositForm";
 import TransactionList from "@/components/dashboard/TransactionList";
-import { getBalance, transfer, deposit } from "@/lib/stellar";
+import { getBalance, transfer } from "@/lib/stellar";
 
 type Wallet = {
   id: number;
@@ -25,20 +25,31 @@ export type TransactionRecord = {
 };
 
 export default function DashboardPage() {
-  // Placeholder for publicKey and secretKey. In a real app, these would come from
-  // a global state management solution (e.g., Context API, Redux) after login.
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [secretKey, setSecretKey] = useState<string | null>(null);
-
   const [balance, setBalance] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [depositPhone, setDepositPhone] = useState("");
-  const [message, setMessage] = useState("");
+  // Updated state to a more structured notification object
+  const [notification, setNotification] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
   const [showSendForm, setShowSendForm] = useState(false);
   const [showDepositForm, setShowDepositForm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Effect to automatically clear notifications after a duration
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        setNotification(null);
+      }, 5000); // Notification will disappear after 5 seconds
+      return () => clearTimeout(timer); // Cleanup function
+    }
+  }, [notification]);
 
   useEffect(() => {
     const storedPublicKey = sessionStorage.getItem("publicKey");
@@ -64,10 +75,8 @@ export default function DashboardPage() {
     if (rawBalance === BigInt(0)) {
       return "0.00";
     }
-
     const balanceStr = rawBalance.toString();
     const decimalPointPosition = balanceStr.length - decimals;
-
     let formatted;
     if (decimalPointPosition <= 0) {
       const leadingZeros = "0".repeat(Math.abs(decimalPointPosition));
@@ -78,22 +87,18 @@ export default function DashboardPage() {
         "." +
         balanceStr.slice(decimalPointPosition);
     }
-
     const [integerPart, fractionalPart] = formatted.split(".");
     const twoDecimalPlaces = fractionalPart ? fractionalPart.slice(0, 2) : "00";
-
     return `${integerPart}.${twoDecimalPlaces}`;
   };
 
   const fetchData = async (pk: string) => {
     setIsLoading(true);
     try {
-      // Fetch balance
       const balanceResult = (await getBalance(pk)) as bigint;
       const formattedBalance = formatBalance(balanceResult, 7);
       setBalance(formattedBalance);
 
-      // Fetch transactions
       const res = await fetch(`/api/transactions?publicKey=${pk}`);
       if (!res.ok) {
         const errorData = await res.json();
@@ -102,10 +107,14 @@ export default function DashboardPage() {
       const transactionsData = await res.json();
       setTransactions(transactionsData);
 
-      setMessage("");
+      setNotification(null); // Clear notification on successful fetch
     } catch (error) {
       console.error("Error fetching data:", error);
-      setMessage(`❌ ${(error as Error).message}`);
+      // Use the new notification state
+      setNotification({
+        type: "error",
+        text: `❌ Failed to load data. Please try again.`,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -113,21 +122,29 @@ export default function DashboardPage() {
 
   const handleSendMoney = async () => {
     if (!publicKey || !secretKey) {
-      setMessage("❌ Please log in to send money.");
+      setNotification({
+        type: "error",
+        text: "❌ Please log in to send money.",
+      });
       return;
     }
-    setMessage("");
+    setNotification(null);
     setIsLoading(true);
     try {
-      await transfer(publicKey, recipient, amount, secretKey); // Pass secretKey
-      setMessage("✅ Money sent successfully!");
+      await transfer(publicKey, recipient, amount, secretKey);
+      // Use the new notification state for success
+      setNotification({ type: "success", text: "✅ Money sent successfully!" });
       setRecipient("");
       setAmount("");
       setShowSendForm(false);
       await fetchData(publicKey);
     } catch (err) {
       console.error("Transfer error:", err);
-      setMessage("❌ " + (err as Error).message);
+      // Use the new notification state for errors
+      setNotification({
+        type: "error",
+        text: `❌ Failed to send money. Please check the amount and recipient.`,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -135,15 +152,15 @@ export default function DashboardPage() {
 
   const handleDeposit = async () => {
     if (!publicKey || !secretKey) {
-      // Ensure secretKey is available for deposit if needed for signing
-      setMessage("❌ Wallet not found. Please log in again.");
+      setNotification({
+        type: "error",
+        text: "❌ Wallet not found. Please log in again.",
+      });
       return;
     }
-    setMessage("");
+    setNotification(null);
     setIsLoading(true);
     try {
-      // This part still uses the /api/mpesa/stk-push endpoint, which is fine.
-      // The deposit function in stellar.ts is for contract interaction, not M-Pesa.
       const res = await fetch("/api/mpesa/stk-push", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -154,24 +171,24 @@ export default function DashboardPage() {
         }),
       });
 
-      const text = await res.text();
-      try {
-        const data = JSON.parse(text);
-        if (!res.ok) {
-          throw new Error(
-            data.details || data.error || "Failed to initiate STK Push"
-          );
-        }
-        setMessage(
-          `✅ STK Push initiated for ${amount} KES. Check your phone to complete the transaction.`
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(
+          data.details || data.error || "Failed to initiate STK Push"
         );
-      } catch (error) {
-        throw new Error(text);
       }
+
+      setNotification({
+        type: "success",
+        text: `✅ STK Push initiated for ${amount} KES. Check your phone to complete the transaction.`,
+      });
+
       setDepositPhone("");
       setAmount("");
     } catch (err) {
-      setMessage(`❌ ${(err as Error).message}`);
+      console.error("Deposit error:", err);
+      setNotification({ type: "error", text: `❌ ${(err as Error).message}` });
     } finally {
       setIsLoading(false);
     }
@@ -185,16 +202,15 @@ export default function DashboardPage() {
   const toggleSendForm = () => {
     setShowSendForm(!showSendForm);
     setShowDepositForm(false);
-    setMessage("");
+    setNotification(null);
   };
 
   const toggleDepositForm = () => {
     setShowDepositForm(!showDepositForm);
     setShowSendForm(false);
-    setMessage("");
+    setNotification(null);
   };
 
-  // Main Dashboard
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100">
       {/* Header */}
@@ -202,14 +218,14 @@ export default function DashboardPage() {
         username={getUsername()}
         onLogout={() => {
           setPublicKey(null);
-          setSecretKey(null); // Clear secret key on logout
+          setSecretKey(null);
           setBalance(null);
           setTransactions([]);
-          setMessage("");
+          setNotification(null);
           setShowSendForm(false);
           setShowDepositForm(false);
           if (typeof window !== "undefined") {
-            window.location.href = "/login"; // Redirect to login page
+            window.location.href = "/login";
           }
         }}
         publicKey={publicKey || ""}
@@ -230,17 +246,17 @@ export default function DashboardPage() {
           onSendClick={toggleSendForm}
         />
 
-        {/* Global Message */}
-        {message && !showSendForm && !showDepositForm && (
+        {/* Global Notification */}
+        {notification && (
           <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
             <div
               className={`p-4 rounded-xl text-center ${
-                message.includes("✅")
+                notification.type === "success"
                   ? "bg-green-500/10 border border-green-500/20 text-green-400"
                   : "bg-red-500/10 border border-red-500/20 text-red-400"
               }`}
             >
-              {message}
+              {notification.text}
             </div>
           </div>
         )}
@@ -250,7 +266,7 @@ export default function DashboardPage() {
           <DepositForm
             amount={amount}
             depositPhone={depositPhone}
-            message={message}
+            message={notification?.text || ""}
             onAmountChange={setAmount}
             onDepositPhoneChange={setDepositPhone}
             onDeposit={handleDeposit}
@@ -261,7 +277,7 @@ export default function DashboardPage() {
           <SendMoneyForm
             recipient={recipient}
             amount={amount}
-            message={message}
+            message={notification?.text || ""}
             onRecipientChange={setRecipient}
             onAmountChange={setAmount}
             onSend={handleSendMoney}
