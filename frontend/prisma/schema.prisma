@@ -20,6 +20,15 @@ model User {
   whatsappVerificationCode String?
   createdAt                DateTime      @default(now())
   transactions             Transaction[]
+  sessions                 Session[] // Add this line
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 model Transaction {
