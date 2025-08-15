@@ -43,41 +43,15 @@ export default function LoginPage() {
         }
       }
 
-      const data = await res.json();
-
-      const decryptRes = await fetch("/api/decrypt-secret", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          encryptedSecret: data.encryptedSecret,
-          password,
-        }),
-      });
-
-      if (!decryptRes.ok) {
-        if (decryptRes.status === 400) {
-          throw new Error(
-            "Unable to securely log you in. Please verify your password."
-          );
-        } else {
-          throw new Error("An unexpected error occurred. Please try again.");
-        }
-      }
-
-      const decryptData = await decryptRes.json();
-      const decryptedSecret = decryptData.decryptedSecret;
-
-      sessionStorage.setItem("publicKey", data.publicKey);
-      sessionStorage.setItem("secretKey", decryptedSecret);
+      // No need to decrypt or store secretKey on client-side anymore
+      // const data = await res.json(); // This data is now just { publicKey: user.publicKey }
 
       setFormMessage({
         type: "success",
         text: "✅ Login successful! Redirecting...",
       });
 
-      setTimeout(() => {
-        router.push("/dashboard");
-      }, 1500);
+      router.push("/dashboard");
     } catch (error: any) {
       console.error("Login error:", error);
       setFormMessage({ type: "error", text: `❌ ${error.message}` });

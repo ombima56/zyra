@@ -9,15 +9,26 @@ datasource db {
 }
 
 model User {
-  id           Int           @id @default(autoincrement())
-  email        String        @unique
-  phone        String        @unique
-  password     String 
-  publicKey    String        @unique
-  secret       String // Stores encrypted secret key
-  balance      Float         @default(0)
-  createdAt    DateTime      @default(now())
-  transactions Transaction[]
+  id                       Int           @id @default(autoincrement())
+  email                    String        @unique
+  phone                    String        @unique
+  password                 String
+  publicKey                String        @unique
+  secret                   String // TODO: Encrypt this key
+  balance                  Float         @default(0)
+  whatsappVerified         Boolean       @default(false)
+  whatsappVerificationCode String?
+  createdAt                DateTime      @default(now())
+  transactions             Transaction[]
+  sessions                 Session[] // Add this line
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 model Transaction {

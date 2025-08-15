@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { createSession } from "@/lib/session"; // Import createSession
 
 export async function POST(request: Request) {
   try {
@@ -24,10 +25,14 @@ export async function POST(request: Request) {
       );
     }
 
+    // Create a server-side session and set an HTTP-only cookie
+    await createSession(user.id);
+
+    // Return only necessary public data, no secret key
     return NextResponse.json(
       {
         publicKey: user.publicKey,
-        encryptedSecret: user.secret,
+        // encryptedSecret is no longer sent to the client
       },
       { status: 200 }
     );

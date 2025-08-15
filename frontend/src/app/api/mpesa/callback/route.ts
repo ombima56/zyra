@@ -2,6 +2,8 @@
 // src/app/api/mpesa/callback/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { deposit } from '@/lib/stellar';
+import { sendWhatsAppMessage } from '@/lib/whatsapp';
 
 export async function POST(req: NextRequest) {
   console.log('M-Pesa Callback Received');
@@ -30,6 +32,9 @@ export async function POST(req: NextRequest) {
           { checkoutRequestID: CheckoutRequestID },
         ],
       },
+      include: {
+        user: true,
+      },
     });
 
     if (!transaction) {
@@ -52,6 +57,13 @@ export async function POST(req: NextRequest) {
 
       console.log(`Transaction ${transaction.id} successful. M-Pesa Receipt: ${mpesaReceiptNumber}`);
 
+      // Fund the user's Stellar account
+      await deposit(
+        transaction.user.publicKey,
+        transaction.amount.toString(),
+        process.env.ADMIN_SECRET_KEY!
+      );
+
       // Update user balance
       await prisma.user.update({
         where: { id: transaction.userId },
@@ -63,6 +75,8 @@ export async function POST(req: NextRequest) {
       });
 
       console.log(`User ${transaction.userId} balance updated with ${transaction.amount}`);
+
+      await sendWhatsAppMessage(transaction.user.phone, `Your account has been funded with ${transaction.amount} XLM.`);
 
     } else {
       console.error(`Transaction ${transaction.id} failed. Reason: ${ResultDesc}`);

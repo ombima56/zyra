@@ -26,7 +26,7 @@ export type TransactionRecord = {
 
 export default function DashboardPage() {
   const [publicKey, setPublicKey] = useState<string | null>(null);
-  const [secretKey, setSecretKey] = useState<string | null>(null);
+  // const [secretKey, setSecretKey] = useState<string | null>(null); // secretKey will now be managed server-side
   const [balance, setBalance] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
   const [recipient, setRecipient] = useState("");
@@ -51,19 +51,30 @@ export default function DashboardPage() {
     }
   }, [notification]);
 
+  // Fetch user session data on component mount
   useEffect(() => {
-    const storedPublicKey = sessionStorage.getItem("publicKey");
-    const storedSecretKey = sessionStorage.getItem("secretKey");
-
-    if (storedPublicKey && storedSecretKey) {
-      setPublicKey(storedPublicKey);
-      setSecretKey(storedSecretKey);
-    } else {
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
+    const fetchUserData = async () => {
+      try {
+        const res = await fetch("/api/user");
+        if (!res.ok) {
+          // If session is not found or unauthorized, redirect to login
+          if (typeof window !== "undefined") {
+            window.location.href = "/login";
+          }
+          return;
+        }
+        const userData = await res.json();
+        setPublicKey(userData.publicKey);
+        // secretKey is not directly exposed to the client anymore
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
       }
-    }
-  }, []);
+    };
+    fetchUserData();
+  }, []); // Run only once on mount
 
   useEffect(() => {
     if (publicKey) {
@@ -121,40 +132,40 @@ export default function DashboardPage() {
   };
 
   const handleSendMoney = async () => {
-    if (!publicKey || !secretKey) {
-      setNotification({
-        type: "error",
-        text: "❌ Please log in to send money.",
-      });
-      return;
-    }
-    setNotification(null);
-    setIsLoading(true);
-    try {
-      await transfer(publicKey, recipient, amount, secretKey);
-      // Use the new notification state for success
-      setNotification({ type: "success", text: "✅ Money sent successfully!" });
-      setRecipient("");
-      setAmount("");
-      setShowSendForm(false);
-      await fetchData(publicKey);
-    } catch (err) {
-      console.error("Transfer error:", err);
-      // Use the new notification state for errors
-      setNotification({
-        type: "error",
-        text: `❌ Failed to send money. Please check the amount and recipient.`,
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    // if (!publicKey || !secretKey) {
+    //   setNotification({
+    //     type: "error",
+    //     text: "❌ Please log in to send money.",
+    //   });
+    //   return;
+    // }
+    // setNotification(null);
+    // setIsLoading(true);
+    // try {
+    //   await transfer(publicKey, recipient, amount, secretKey);
+    //   // Use the new notification state for success
+    //   setNotification({ type: "success", text: "✅ Money sent successfully!" });
+    //   setRecipient("");
+    //   setAmount("");
+    //   setShowSendForm(false);
+    //   await fetchData(publicKey);
+    // } catch (err) {
+    //   console.error("Transfer error:", err);
+    //   // Use the new notification state for errors
+    //   setNotification({
+    //     type: "error",
+    //     text: `❌ Failed to send money. Please check the amount and recipient.`,
+    //   });
+    // } finally {
+    //   setIsLoading(false);
+    // }
   };
 
   const handleDeposit = async () => {
-    if (!publicKey || !secretKey) {
+    if (!publicKey) {
       setNotification({
         type: "error",
-        text: "❌ Wallet not found. Please log in again.",
+        text: "Please log in again.",
       });
       return;
     }
@@ -211,23 +222,27 @@ export default function DashboardPage() {
     setNotification(null);
   };
 
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/logout", {
+        method: "POST",
+      });
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      // Redirect to login page regardless of API call success
+      if (typeof window !== "undefined") {
+        window.location.href = "/login";
+      }
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100">
       {/* Header */}
       <Header
         username={getUsername()}
-        onLogout={() => {
-          setPublicKey(null);
-          setSecretKey(null);
-          setBalance(null);
-          setTransactions([]);
-          setNotification(null);
-          setShowSendForm(false);
-          setShowDepositForm(false);
-          if (typeof window !== "undefined") {
-            window.location.href = "/login";
-          }
-        }}
+        onLogout={handleLogout} // Use the new handleLogout function
         publicKey={publicKey || ""}
       />
 
