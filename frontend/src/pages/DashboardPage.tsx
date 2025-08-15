@@ -59,7 +59,6 @@ export default function DashboardPage() {
       setPublicKey(storedPublicKey);
       setSecretKey(storedSecretKey);
     } else {
-      console.log("No stored keys found");
       if (typeof window !== "undefined") {
         window.location.href = "/login";
       }
@@ -217,18 +216,7 @@ export default function DashboardPage() {
       {/* Header */}
       <Header
         username={getUsername()}
-        onLogout={() => {
-          setPublicKey(null);
-          setSecretKey(null);
-          setBalance(null);
-          setTransactions([]);
-          setNotification(null);
-          setShowSendForm(false);
-          setShowDepositForm(false);
-          if (typeof window !== "undefined") {
-            window.location.href = "/login";
-          }
-        }}
+        onLogout={handleLogout} // Use the new handleLogout function
         publicKey={publicKey || ""}
       />
 
