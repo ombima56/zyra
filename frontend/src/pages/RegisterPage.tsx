@@ -66,6 +66,7 @@ export default function RegisterPage() {
               Send the following code to our WhatsApp number to verify your
               account:
             </p>
+            <p className="text-2xl font-bold my-2">+1 555 141 3984</p>
             <p className="text-4xl font-bold my-4">{verificationCode}</p>
             <p className="text-gray-400">
               Once you have verified your account, you can{" "}
