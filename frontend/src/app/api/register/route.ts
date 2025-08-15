@@ -1,48 +1,65 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { createKeypair } from "@/lib/stellar";
-import CryptoJS from "crypto-js";
-import bcrypt from "bcryptjs";
+import { Keypair } from "@stellar/stellar-sdk";
+import bcrypt from "bcrypt";
+import { formatPhoneNumber } from "@/lib/whatsapp";
 
-const encrypt = (text: string, secret: string): string => {
-  return CryptoJS.AES.encrypt(text, secret).toString();
-};
+export async function POST(req: NextRequest) {
+  const { email, phone, password } = await req.json();
 
-export async function POST(request: Request) {
+  if (!email || !phone || !password) {
+    return NextResponse.json(
+      { message: "Missing required fields" },
+      { status: 400 }
+    );
+  }
+
+  const formattedPhone = formatPhoneNumber(phone);
+
   try {
-    const { email, phone, password } = await request.json();
+    const existingUser = await prisma.user.findFirst({
+      where: { OR: [{ email }, { phone: formattedPhone }] },
+    });
 
-    if (!email || !phone || !password) {
+    if (existingUser) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { message: "User already exists" },
         { status: 400 }
       );
     }
 
+    const keypair = Keypair.random();
+    const publicKey = keypair.publicKey();
+    const secret = keypair.secret();
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const { publicKey, secret } = createKeypair();
-
-    const encryptedSecret = encrypt(secret, password);
+    const verificationCode = Math.floor(
+      100000 + Math.random() * 900000
+    ).toString();
 
     const user = await prisma.user.create({
       data: {
         email,
-        phone,
+        phone: formattedPhone,
         password: hashedPassword,
         publicKey,
-        secret: encryptedSecret,
+        secret, // Storing secret directly for now
+        whatsappVerificationCode: verificationCode,
       },
     });
 
     return NextResponse.json(
-      { message: "User registered successfully", publicKey: user.publicKey },
+      {
+        publicKey: user.publicKey,
+        whatsappVerificationCode: verificationCode,
+      },
       { status: 201 }
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Registration error:", error);
     return NextResponse.json(
-      { error: error.message || "Internal server error" },
+      { message: "Internal server error" },
       { status: 500 }
     );
   }
