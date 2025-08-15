@@ -26,7 +26,7 @@ export async function createSession(userId: number) {
 }
 
 export async function getSession() {
-  const cookieStore = cookies(); // Await the cookies() call
+  const cookieStore = await cookies(); // Explicitly await here
   const sessionId = cookieStore.get("sessionId")?.value;
 
   if (!sessionId) {
@@ -50,7 +50,7 @@ export async function getSession() {
 }
 
 export async function deleteSession() {
-  const cookieStore = cookies(); // Await the cookies() call
+  const cookieStore = await cookies(); // Explicitly await here
   const sessionId = cookieStore.get("sessionId")?.value;
 
   if (sessionId) {

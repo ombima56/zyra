@@ -105,6 +105,10 @@ export async function POST(req: NextRequest) {
     console.error("Error initiating STK Push:", err);
     const errorMessage =
       (err as any).response?.data || (err as Error).message || "Unknown error";
+    // Add detailed logging for 400 errors
+    if ((err as any).response && (err as any).response.status === 400) {
+      console.error("M-Pesa STK Push 400 Error Details:", (err as any).response.data);
+    }
     return NextResponse.json(
       { error: "Failed to initiate STK Push", details: errorMessage },
       { status: 500 }
