@@ -51,19 +51,30 @@ export default function DashboardPage() {
     }
   }, [notification]);
 
+  // Fetch user session data on component mount
   useEffect(() => {
-    const storedPublicKey = sessionStorage.getItem("publicKey");
-    const storedSecretKey = sessionStorage.getItem("secretKey");
-
-    if (storedPublicKey && storedSecretKey) {
-      setPublicKey(storedPublicKey);
-      setSecretKey(storedSecretKey);
-    } else {
-      if (typeof window !== "undefined") {
-        window.location.href = "/login";
+    const fetchUserData = async () => {
+      try {
+        const res = await fetch("/api/user");
+        if (!res.ok) {
+          // If session is not found or unauthorized, redirect to login
+          if (typeof window !== "undefined") {
+            window.location.href = "/login";
+          }
+          return;
+        }
+        const userData = await res.json();
+        setPublicKey(userData.publicKey);
+        // secretKey is not directly exposed to the client anymore
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+        if (typeof window !== "undefined") {
+          window.location.href = "/login";
+        }
       }
-    }
-  }, []);
+    };
+    fetchUserData();
+  }, []); // Run only once on mount
 
   useEffect(() => {
     if (publicKey) {
