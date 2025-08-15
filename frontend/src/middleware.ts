@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { getSession } from '@/lib/session';
 
 // List of paths that require authentication
 const protectedPaths = ['/dashboard'];
@@ -10,10 +9,10 @@ export async function middleware(request: NextRequest) {
 
   // Check if the current path is protected
   if (protectedPaths.includes(pathname)) {
-    const session = await getSession();
+    const sessionId = request.cookies.get('sessionId')?.value; // Directly check the cookie
 
-    // If no session is found, redirect to login
-    if (!session) {
+    // If no session ID is found, redirect to login
+    if (!sessionId) {
       const url = request.nextUrl.clone();
       url.pathname = '/login';
       return NextResponse.redirect(url);

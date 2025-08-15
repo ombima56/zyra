@@ -13,7 +13,6 @@ export async function createSession(userId: number) {
     },
   });
 
-  // Await the cookies() call
   const cookieStore = cookies();
   cookieStore.set("sessionId", session.id, {
     httpOnly: true,
@@ -27,8 +26,7 @@ export async function createSession(userId: number) {
 }
 
 export async function getSession() {
-  // Await the cookies() call
-  const cookieStore = cookies();
+  const cookieStore = cookies(); // Await the cookies() call
   const sessionId = cookieStore.get("sessionId")?.value;
 
   if (!sessionId) {
@@ -41,11 +39,10 @@ export async function getSession() {
   });
 
   if (!session || session.expiresAt < new Date()) {
-    // Session expired or not found, delete it
     if (session) {
       await prisma.session.delete({ where: { id: session.id } });
     }
-    cookieStore.delete("sessionId"); // Await the cookies() call
+    cookieStore.delete("sessionId");
     return null;
   }
 
@@ -53,12 +50,11 @@ export async function getSession() {
 }
 
 export async function deleteSession() {
-  // Await the cookies() call
-  const cookieStore = cookies();
+  const cookieStore = cookies(); // Await the cookies() call
   const sessionId = cookieStore.get("sessionId")?.value;
 
   if (sessionId) {
     await prisma.session.delete({ where: { id: sessionId } });
   }
-  cookieStore.delete("sessionId"); // Await the cookies() call
+  cookieStore.delete("sessionId");
 }
