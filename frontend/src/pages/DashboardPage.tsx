@@ -26,7 +26,7 @@ export type TransactionRecord = {
 
 export default function DashboardPage() {
   const [publicKey, setPublicKey] = useState<string | null>(null);
-  const [secretKey, setSecretKey] = useState<string | null>(null);
+  // const [secretKey, setSecretKey] = useState<string | null>(null); // secretKey will now be managed server-side
   const [balance, setBalance] = useState<string | null>(null);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
   const [recipient, setRecipient] = useState("");
@@ -132,40 +132,40 @@ export default function DashboardPage() {
   };
 
   const handleSendMoney = async () => {
-    if (!publicKey || !secretKey) {
-      setNotification({
-        type: "error",
-        text: "❌ Please log in to send money.",
-      });
-      return;
-    }
-    setNotification(null);
-    setIsLoading(true);
-    try {
-      await transfer(publicKey, recipient, amount, secretKey);
-      // Use the new notification state for success
-      setNotification({ type: "success", text: "✅ Money sent successfully!" });
-      setRecipient("");
-      setAmount("");
-      setShowSendForm(false);
-      await fetchData(publicKey);
-    } catch (err) {
-      console.error("Transfer error:", err);
-      // Use the new notification state for errors
-      setNotification({
-        type: "error",
-        text: `❌ Failed to send money. Please check the amount and recipient.`,
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    // if (!publicKey || !secretKey) {
+    //   setNotification({
+    //     type: "error",
+    //     text: "❌ Please log in to send money.",
+    //   });
+    //   return;
+    // }
+    // setNotification(null);
+    // setIsLoading(true);
+    // try {
+    //   await transfer(publicKey, recipient, amount, secretKey);
+    //   // Use the new notification state for success
+    //   setNotification({ type: "success", text: "✅ Money sent successfully!" });
+    //   setRecipient("");
+    //   setAmount("");
+    //   setShowSendForm(false);
+    //   await fetchData(publicKey);
+    // } catch (err) {
+    //   console.error("Transfer error:", err);
+    //   // Use the new notification state for errors
+    //   setNotification({
+    //     type: "error",
+    //     text: `❌ Failed to send money. Please check the amount and recipient.`,
+    //   });
+    // } finally {
+    //   setIsLoading(false);
+    // }
   };
 
   const handleDeposit = async () => {
-    if (!publicKey || !secretKey) {
+    if (!publicKey) {
       setNotification({
         type: "error",
-        text: "❌ Wallet not found. Please log in again.",
+        text: "Please log in again.",
       });
       return;
     }
