@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
           }
 
           const response = await fetch(
-            `${process.env.NEXT_PUBLIC_URL}/api/mpesa/stk-push`,
+            `${process.env.NEXT_PUBLIC_APP_URL}/api/mpesa/stk-push`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
