@@ -59,6 +59,7 @@ export default function DashboardPage() {
       setPublicKey(storedPublicKey);
       setSecretKey(storedSecretKey);
     } else {
+      console.log("No stored keys found");
       if (typeof window !== "undefined") {
         window.location.href = "/login";
       }
