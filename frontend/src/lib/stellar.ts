@@ -56,15 +56,19 @@ export const getBalance = async (userAddress: string): Promise<bigint> => {
       );
     }
 
-    const account = new Address(userAddress);
+    console.log("Getting balance for:", userAddress);
+    console.log("Contract ID:", contractId);
 
-    const contractAddress = new Address(contractId);
+    // Create Address objects properly
+    const userAddressObj = Address.fromString(userAddress);
+    const contractAddress = Address.fromString(contractId);
+
     const operation = Operation.invokeHostFunction({
       func: xdr.HostFunction.hostFunctionTypeInvokeContract(
         new xdr.InvokeContractArgs({
           contractAddress: contractAddress.toScAddress(),
           functionName: "balance",
-          args: [account.toScVal()],
+          args: [userAddressObj.toScVal()],
         })
       ),
       auth: [],
@@ -83,9 +87,11 @@ export const getBalance = async (userAddress: string): Promise<bigint> => {
       .build();
 
     // Simulate the transaction to get the result
+    console.log("Simulating balance query...");
     const simulationResponse = await server.simulateTransaction(transaction);
 
     if (rpc.Api.isSimulationError(simulationResponse)) {
+      console.error("Simulation error:", simulationResponse.error);
       throw new Error(`Simulation error: ${simulationResponse.error}`);
     }
 
@@ -97,6 +103,7 @@ export const getBalance = async (userAddress: string): Promise<bigint> => {
     const resultXdr = simulationResponse.result.retval;
     const result = scValToNative(resultXdr);
 
+    console.log("Balance query successful, raw result:", result);
     return BigInt(result.toString());
   } catch (error) {
     console.error("Error getting balance:", error);
@@ -120,7 +127,7 @@ async function submitSorobanTransaction(
     const account = new Account(userAddress, accountResponse.sequenceNumber());
 
     // Build the transaction
-    const transaction = new TransactionBuilder(account, {
+    let transaction = new TransactionBuilder(account, {
       fee: BASE_FEE,
       networkPassphrase,
     })
@@ -128,7 +135,19 @@ async function submitSorobanTransaction(
       .setTimeout(TimeoutInfinite)
       .build();
 
-    // Sign the transaction directly
+    // Simulate first to get proper fee and auth
+    const simulationResponse = await server.simulateTransaction(transaction);
+
+    if (rpc.Api.isSimulationError(simulationResponse)) {
+      throw new Error(`Simulation failed: ${simulationResponse.error}`);
+    }
+
+    // Assemble the transaction with simulation results
+    transaction = rpc
+      .assembleTransaction(transaction, simulationResponse)
+      .build();
+
+    // Sign the transaction
     transaction.sign(keypair);
 
     // Submit the signed transaction
@@ -170,11 +189,12 @@ export const transfer = async (
       );
     }
 
-    const fromAddress = new Address(from);
-    const toAddress = new Address(to);
+    // Create Address objects properly
+    const fromAddress = Address.fromString(from);
+    const toAddress = Address.fromString(to);
+    const contractAddress = Address.fromString(contractId);
     const amountToTransfer = BigInt(amount);
 
-    const contractAddress = new Address(contractId);
     const operation = Operation.invokeHostFunction({
       func: xdr.HostFunction.hostFunctionTypeInvokeContract(
         new xdr.InvokeContractArgs({
@@ -212,10 +232,11 @@ export const deposit = async (
       );
     }
 
-    const depositorAddress = new Address(depositor);
+    // Create Address objects properly
+    const depositorAddress = Address.fromString(depositor);
+    const contractAddress = Address.fromString(contractId);
     const amountToDeposit = BigInt(amount);
 
-    const contractAddress = new Address(contractId);
     const operation = Operation.invokeHostFunction({
       func: xdr.HostFunction.hostFunctionTypeInvokeContract(
         new xdr.InvokeContractArgs({
