@@ -35,19 +35,22 @@ impl PaymentsContract {
     pub fn deposit(env: Env, depositor: Address, amount: i128) {
         let admin: soroban_sdk::Address = env.storage().instance().get(&Symbol::new(&env, "admin")).unwrap();
         admin.require_auth();
-
+        
         if amount <= 0 {
             panic!("Deposit amount must be a positive number.");
         }
-
+    
         let min_deposit_amount: i128 = 50;
         if amount < min_deposit_amount {
             panic!("Deposit amount is below the minimum allowed.");
         }
-
+    
         let token_address = env.storage().instance().get(&Symbol::new(&env, "token")).unwrap();
-        let token_client = soroban_sdk::token::StellarAssetClient::new(&env, &token_address);
-        token_client.mint(&depositor, &amount);
+        let token_client = soroban_sdk::token::Client::new(&env, &token_address);
+        
+        // Transfer from depositor to the contract
+        let contract_address = env.current_contract_address();
+        token_client.transfer(&depositor, &contract_address, &amount);
     }
 
     // Get the balance of a user
