@@ -65,6 +65,7 @@ export default function DashboardPage() {
         }
         const userData = await res.json();
         setPublicKey(userData.publicKey);
+        console.log("Public Key from API:", userData.publicKey);
         // secretKey is not directly exposed to the client anymore
       } catch (error) {
         console.error("Error fetching user data:", error);
@@ -74,7 +75,7 @@ export default function DashboardPage() {
       }
     };
     fetchUserData();
-  }, []); // Run only once on mount
+  }, []);
 
   useEffect(() => {
     if (publicKey) {
