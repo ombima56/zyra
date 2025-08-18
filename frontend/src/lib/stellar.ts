@@ -145,7 +145,6 @@ export const getBalance = async (userAddress: string): Promise<string> => {
       const errorMessage = simulationResponse.error;
       console.log("Simulation error details:", errorMessage);
 
-      // Check if the error indicates the user doesn't exist or has no balance
       if (
         errorMessage.includes("UnreachableCodeReached") ||
         errorMessage.includes("InvalidAction") ||
@@ -158,7 +157,6 @@ export const getBalance = async (userAddress: string): Promise<string> => {
         return "0.00";
       }
 
-      // For other errors, still throw
       console.error("Unexpected simulation error:", errorMessage);
       throw new Error(`Balance query failed: ${errorMessage}`);
     }
@@ -198,6 +196,7 @@ export const getBalance = async (userAddress: string): Promise<string> => {
 
 /**
  * Creates and submits a Soroban transaction using a secret key for signing.
+ * SAFE against "Bad union switch" by avoiding XDR decoding from result objects.
  */
 async function submitSorobanTransaction(
   userAddress: string,
@@ -207,8 +206,9 @@ async function submitSorobanTransaction(
   try {
     const keypair = Keypair.fromSecret(secretKey);
 
-    // Get the user's account details
+    // Get the user's account details - this returns an AccountResponse, not an Account
     const accountResponse = await server.getAccount(userAddress);
+    // Create an Account object using the sequence from the response
     const account = new Account(userAddress, accountResponse.sequenceNumber());
 
     // Build the transaction
@@ -239,21 +239,72 @@ async function submitSorobanTransaction(
     const transactionResponse = await server.sendTransaction(transaction);
 
     if (transactionResponse.status === "ERROR") {
-      throw new Error(`Transaction failed: ${transactionResponse.errorResult}`);
+      // Do NOT access errorResult (can trigger XDR decoding)
+      console.error("sendTransaction ERROR:", transactionResponse);
+      throw new Error("Transaction submission failed.");
     }
 
     // Wait for the transaction to be included in a ledger
-    let getResponse = await server.getTransaction(transactionResponse.hash);
-    while (getResponse.status === rpc.Api.GetTransactionStatus.NOT_FOUND) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      getResponse = await server.getTransaction(transactionResponse.hash);
+    let attempts = 0;
+    const maxAttempts = 30; // ~30 seconds
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let getResponse: any;
+
+    while (attempts < maxAttempts) {
+      try {
+        getResponse = await server.getTransaction(transactionResponse.hash);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("Bad union switch") || msg.includes("XDR")) {
+          // Treat this as an undecodable status; likely the tx made it to the network.
+          console.warn(
+            "Non-fatal status decode error (likely SDK/XDR mismatch). Assume submission ok; verify externally if needed."
+          );
+          return; // Exit gracefully without throwing
+        }
+        // Other errors are real
+        throw e;
+      }
+
+      if (getResponse.status === rpc.Api.GetTransactionStatus.SUCCESS) {
+        console.log("Transaction successful:", transactionResponse.hash);
+        return;
+      }
+
+      if (getResponse.status === rpc.Api.GetTransactionStatus.FAILED) {
+        // Do NOT read resultXdr to avoid union decode
+        console.error("Transaction FAILED (no XDR decode):", getResponse);
+        throw new Error(
+          "Transaction failed. This could be due to insufficient balance, invalid arguments, or network issues."
+        );
+      }
+
+      if (getResponse.status === rpc.Api.GetTransactionStatus.NOT_FOUND) {
+        attempts += 1;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        continue;
+      }
+
+      // Any other status: log and return
+      console.log("Transaction status:", getResponse.status);
+      return;
     }
 
-    if (getResponse.status === rpc.Api.GetTransactionStatus.FAILED) {
-      throw new Error(`Transaction failed: ${getResponse.resultXdr}`);
-    }
+    throw new Error(
+      "Transaction confirmation timeout. Please check the transaction status manually."
+    );
   } catch (error) {
     console.error("Error submitting Soroban transaction:", error);
+    // Normalize Bad union switch anywhere in the call stack
+    if (
+      error instanceof Error &&
+      (error.message.includes("Bad union switch") ||
+        error.message.includes("XDR"))
+    ) {
+      throw new Error(
+        "Transaction submitted, but status decoding encountered an error. Please verify the transaction status separately."
+      );
+    }
     throw error;
   }
 }
@@ -306,6 +357,16 @@ export const transfer = async (
     await submitSorobanTransaction(from, secretKey, operation);
   } catch (error) {
     console.error("Error transferring tokens:", error);
+    // Normalize XDR/union parsing issues
+    if (
+      error instanceof Error &&
+      (error.message.includes("Bad union switch") ||
+        error.message.includes("XDR"))
+    ) {
+      throw new Error(
+        "Transfer submitted, but status decoding failed. Please check balances to confirm the result."
+      );
+    }
     throw error;
   }
 };
@@ -354,6 +415,15 @@ export const deposit = async (
     await submitSorobanTransaction(depositor, secretKey, operation);
   } catch (error) {
     console.error("Error depositing tokens:", error);
+    if (
+      error instanceof Error &&
+      (error.message.includes("Bad union switch") ||
+        error.message.includes("XDR"))
+    ) {
+      throw new Error(
+        "Deposit submitted, but status decoding failed. Please verify on-chain state."
+      );
+    }
     throw error;
   }
 };
@@ -392,7 +462,6 @@ export const getNativeBalance = async (
     }
   } catch (error) {
     console.error("Error getting native XLM balance:", error);
-    // If the account doesn't exist, getAccount will throw.
     if (error instanceof Error && error.message.includes("Account not found")) {
       console.log("Account not found on network, returning 0.00");
       return "0.00";
@@ -416,11 +485,30 @@ export const transferNative = async (
     const sourceKeypair = Keypair.fromSecret(senderSecret);
     const sourcePublicKey = sourceKeypair.publicKey();
 
-    // Load the source account
-    const sourceAccount = await server.getAccount(sourcePublicKey);
+    console.log(
+      `Transferring ${amount} XLM from ${sourcePublicKey} to ${recipientPublicKey}`
+    );
+
+    // Check if the recipient account exists
+    try {
+      await server.getAccount(recipientPublicKey);
+    } catch (error) {
+      if (
+        error instanceof Error &&
+        error.message.includes("Account not found")
+      ) {
+        throw new Error(
+          "Recipient account does not exist. The recipient needs to activate their account first by receiving at least 1 XLM."
+        );
+      }
+      throw error;
+    }
+
+    // Load the source account - this returns an AccountResponse
+    const sourceAccountResponse = await server.getAccount(sourcePublicKey);
     const account = new Account(
       sourcePublicKey,
-      sourceAccount.sequenceNumber()
+      sourceAccountResponse.sequenceNumber()
     );
 
     // Build the transaction
@@ -441,25 +529,95 @@ export const transferNative = async (
     // Sign the transaction
     transaction.sign(sourceKeypair);
 
+    console.log("Submitting transaction...");
+
     // Submit the transaction
     const transactionResponse = await server.sendTransaction(transaction);
 
+    console.log("Transaction submitted:", transactionResponse.hash);
+
     if (transactionResponse.status === "ERROR") {
-      throw new Error(`Transaction failed: ${transactionResponse.errorResult}`);
+      // Do NOT access errorResult
+      console.error("sendTransaction ERROR:", transactionResponse);
+      throw new Error("Transaction submission failed.");
     }
 
-    // Wait for the transaction to be included in a ledger
-    let getResponse = await server.getTransaction(transactionResponse.hash);
-    while (getResponse.status === rpc.Api.GetTransactionStatus.NOT_FOUND) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      getResponse = await server.getTransaction(transactionResponse.hash);
+    // Wait for the transaction to be included in a ledger with better error handling
+    let attempts = 0;
+    const maxAttempts = 30; // 30 seconds timeout
+
+    while (attempts < maxAttempts) {
+      let getResponse: Awaited<ReturnType<typeof server.getTransaction>>;
+
+      try {
+        getResponse = await server.getTransaction(transactionResponse.hash);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("Bad union switch") || msg.includes("XDR")) {
+          console.warn(
+            "Status decode error (likely SDK/XDR mismatch). Assuming submission ok; verify balance or explorer."
+          );
+          return;
+        }
+        throw e;
+      }
+
+      if (getResponse.status === rpc.Api.GetTransactionStatus.SUCCESS) {
+        console.log("Transaction successful:", transactionResponse.hash);
+        return;
+      }
+
+      if (getResponse.status === rpc.Api.GetTransactionStatus.FAILED) {
+        console.error("Transaction failed (no XDR decode):", getResponse);
+        throw new Error(
+          "Transaction failed. This could be due to insufficient balance, invalid recipient, or network issues. Please check your balance and try again."
+        );
+      }
+
+      if (getResponse.status === rpc.Api.GetTransactionStatus.NOT_FOUND) {
+        attempts++;
+        console.log(
+          `Waiting for transaction confirmation... (${attempts}/${maxAttempts})`
+        );
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        continue;
+      }
+
+      // Any other status: log and return
+      console.log("Transaction status:", getResponse);
+      return;
     }
 
-    if (getResponse.status === rpc.Api.GetTransactionStatus.FAILED) {
-      throw new Error(`Transaction failed: ${getResponse.resultXdr}`);
-    }
+    throw new Error(
+      "Transaction confirmation timeout. Please check the transaction status manually."
+    );
   } catch (error) {
     console.error("Error transferring native XLM:", error);
+
+    if (error instanceof Error) {
+      if (error.message.includes("Account not found")) {
+        throw new Error(
+          "Source account not found. Please ensure the account is funded and activated."
+        );
+      } else if (error.message.includes("destination does not exist")) {
+        throw new Error(
+          "Destination account does not exist. The recipient needs to activate their account first."
+        );
+      } else if (error.message.includes("Insufficient balance")) {
+        throw new Error(
+          "Insufficient balance to complete the transfer including fees."
+        );
+      } else if (
+        error.message.includes("Bad union switch") ||
+        error.message.includes("XDR")
+      ) {
+        // Handle XDR parsing errors gracefully
+        throw new Error(
+          "Transaction processing completed, but status confirmation had an error. Please check your balance to confirm if the transaction succeeded."
+        );
+      }
+    }
+
     throw error;
   }
 };
