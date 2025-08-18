@@ -6,7 +6,7 @@ import Actions from "@/components/dashboard/Actions";
 import SendMoneyForm from "@/components/dashboard/SendMoneyForm";
 import DepositForm from "@/components/dashboard/DepositForm";
 import TransactionList from "@/components/dashboard/TransactionList";
-import { getBalance, transfer } from "@/lib/stellar";
+import { getNativeBalance, transferNative } from "@/lib/stellar";
 
 type Wallet = {
   id: number;
@@ -26,8 +26,9 @@ export type TransactionRecord = {
 
 export default function DashboardPage() {
   const [publicKey, setPublicKey] = useState<string | null>(null);
-  // const [secretKey, setSecretKey] = useState<string | null>(null); // secretKey will now be managed server-side
+  const [secretKey, setSecretKey] = useState<string | null>(null);
   const [balance, setBalance] = useState<string | null>(null);
+  const [whatsappVerified, setWhatsappVerified] = useState(false);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
@@ -65,8 +66,10 @@ export default function DashboardPage() {
         }
         const userData = await res.json();
         setPublicKey(userData.publicKey);
+        setSecretKey(userData.secret);
+        setBalance(userData.balance.toString());
+        setWhatsappVerified(userData.whatsappVerified);
         console.log("Public Key from API:", userData.publicKey);
-        // secretKey is not directly exposed to the client anymore
       } catch (error) {
         console.error("Error fetching user data:", error);
         if (typeof window !== "undefined") {
@@ -83,33 +86,18 @@ export default function DashboardPage() {
     }
   }, [publicKey]);
 
-  const formatBalance = (rawBalance: bigint, decimals: number): string => {
-    if (rawBalance === BigInt(0)) {
-      return "0.00";
-    }
-    const balanceStr = rawBalance.toString();
-    const decimalPointPosition = balanceStr.length - decimals;
-    let formatted;
-    if (decimalPointPosition <= 0) {
-      const leadingZeros = "0".repeat(Math.abs(decimalPointPosition));
-      formatted = `0.${leadingZeros}${balanceStr}`;
-    } else {
-      formatted =
-        balanceStr.slice(0, decimalPointPosition) +
-        "." +
-        balanceStr.slice(decimalPointPosition);
-    }
-    const [integerPart, fractionalPart] = formatted.split(".");
-    const twoDecimalPlaces = fractionalPart ? fractionalPart.slice(0, 2) : "00";
-    return `${integerPart}.${twoDecimalPlaces}`;
-  };
-
   const fetchData = async (pk: string) => {
     setIsLoading(true);
     try {
-      const balanceResult = (await getBalance(pk)) as bigint;
-      const formattedBalance = formatBalance(balanceResult, 7);
-      setBalance(formattedBalance);
+      const balanceResult = await getNativeBalance(pk);
+      setBalance(balanceResult);
+
+      // Update balance in the database
+      await fetch("/api/user/balance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ publicKey: pk, balance: balanceResult }),
+      });
 
       const res = await fetch(`/api/transactions?publicKey=${pk}`);
       if (!res.ok) {
@@ -127,39 +115,87 @@ export default function DashboardPage() {
         type: "error",
         text: `❌ Failed to load data. Please try again.`,
       });
+      setBalance("0.00");
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleSendMoney = async () => {
-    // if (!publicKey || !secretKey) {
-    //   setNotification({
-    //     type: "error",
-    //     text: "❌ Please log in to send money.",
-    //   });
-    //   return;
-    // }
-    // setNotification(null);
-    // setIsLoading(true);
-    // try {
-    //   await transfer(publicKey, recipient, amount, secretKey);
-    //   // Use the new notification state for success
-    //   setNotification({ type: "success", text: "✅ Money sent successfully!" });
-    //   setRecipient("");
-    //   setAmount("");
-    //   setShowSendForm(false);
-    //   await fetchData(publicKey);
-    // } catch (err) {
-    //   console.error("Transfer error:", err);
-    //   // Use the new notification state for errors
-    //   setNotification({
-    //     type: "error",
-    //     text: `❌ Failed to send money. Please check the amount and recipient.`,
-    //   });
-    // } finally {
-    //   setIsLoading(false);
-    // }
+    if (!publicKey || !secretKey) {
+      setNotification({
+        type: "error",
+        text: "Please log in to send money.",
+      });
+      return;
+    }
+
+    // Validate inputs
+    if (!recipient || !amount) {
+      setNotification({
+        type: "error",
+        text: "Please enter both recipient address and amount.",
+      });
+      return;
+    }
+
+    // Validate amount
+    const numAmount = parseFloat(amount);
+    if (isNaN(numAmount) || numAmount <= 0) {
+      setNotification({
+        type: "error",
+        text: "Please enter a valid amount greater than 0.",
+      });
+      return;
+    }
+
+    // Validate recipient address format
+    if (!recipient.startsWith("G") || recipient.length !== 56) {
+      setNotification({
+        type: "error",
+        text: "Invalid recipient address. Please check the format.",
+      });
+      return;
+    }
+
+    // Check if user has sufficient balance
+    const currentBalance = parseFloat(balance || "0");
+    if (numAmount > currentBalance) {
+      setNotification({
+        type: "error",
+        text: "Insufficient balance for this transfer.",
+      });
+      return;
+    }
+
+    setNotification(null);
+    setIsLoading(true);
+
+    try {
+      await transferNative(secretKey, recipient, amount);
+
+      setNotification({
+        type: "success",
+        text: `✅ Successfully sent ${amount} to ${recipient.slice(
+          0,
+          8
+        )}...${recipient.slice(-8)}`,
+      });
+
+      // Clear form and refresh data
+      setRecipient("");
+      setAmount("");
+      setShowSendForm(false);
+      await fetchData(publicKey);
+    } catch (err) {
+      console.error("Transfer error:", err);
+      setNotification({
+        type: "error",
+        text: `❌ ${(err as Error).message}`,
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleDeposit = async () => {
@@ -263,6 +299,15 @@ export default function DashboardPage() {
         />
 
         {/* Global Notification */}
+        {!whatsappVerified && (
+          <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
+            <div
+              className={`p-4 rounded-xl text-center bg-yellow-500/10 border border-yellow-500/20 text-yellow-400`}
+            >
+              Please verify your WhatsApp account to enable all features.
+            </div>
+          </div>
+        )}
         {notification && (
           <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
             <div
