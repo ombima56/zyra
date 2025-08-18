@@ -171,6 +171,9 @@ export default function DashboardPage() {
     setNotification(null);
     setIsLoading(true);
 
+    // Store the initial balance to compare after transaction
+    const initialBalance = currentBalance;
+
     try {
       await transferNative(secretKey, recipient, amount);
 
@@ -189,10 +192,62 @@ export default function DashboardPage() {
       await fetchData(publicKey);
     } catch (err) {
       console.error("Transfer error:", err);
-      setNotification({
-        type: "error",
-        text: `❌ ${(err as Error).message}`,
-      });
+
+      // If we get an XDR parsing error, check if the balance actually changed
+      if (
+        err instanceof Error &&
+        (err.message.includes("Transaction processing completed") ||
+          err.message.includes("Bad union switch") ||
+          err.message.includes("XDR"))
+      ) {
+        try {
+          // Wait a moment for the transaction to be processed
+          await new Promise((resolve) => setTimeout(resolve, 3000));
+
+          // Refresh the balance
+          const newBalance = await getNativeBalance(publicKey);
+          const newBalanceNum = parseFloat(newBalance);
+
+          // If the balance decreased by approximately the sent amount, the transaction likely succeeded
+          if (initialBalance - newBalanceNum >= numAmount * 0.99) {
+            // Allow for small fee differences
+            setNotification({
+              type: "success",
+              text: `✅ Transaction completed! Sent ${amount} to ${recipient.slice(
+                0,
+                8
+              )}...${recipient.slice(-8)}`,
+            });
+
+            // Clear form and refresh data
+            setRecipient("");
+            setAmount("");
+            setShowSendForm(false);
+            await fetchData(publicKey);
+          } else {
+            // Balance didn't change as expected, show error
+            setNotification({
+              type: "error",
+              text: "⚠️ Transaction status unclear. Please check your balance and transaction history.",
+            });
+          }
+        } catch (balanceError) {
+          console.error(
+            "Error checking balance after transaction:",
+            balanceError
+          );
+          setNotification({
+            type: "error",
+            text: "⚠️ Transaction status unclear. Please check your balance and try again if needed.",
+          });
+        }
+      } else {
+        // Regular error handling
+        setNotification({
+          type: "error",
+          text: `❌ ${(err as Error).message}`,
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -342,6 +397,7 @@ export default function DashboardPage() {
             onRecipientChange={setRecipient}
             onAmountChange={setAmount}
             onSend={handleSendMoney}
+            currentBalance={balance || "0"}
           />
         )}
 
