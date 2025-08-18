@@ -43,6 +43,7 @@ model Transaction {
   resultDesc            String?
   mpesaReceiptNumber    String?
   transactionDate       String?
+  recipientAddress      String?
   status                String    @default("PENDING") // PENDING, SUCCESS, FAILED
   type                  String    @default("DEPOSIT") // DEPOSIT, WITHDRAWAL
   createdAt             DateTime  @default(now())
