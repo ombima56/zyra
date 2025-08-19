@@ -70,7 +70,7 @@ export default function Header({ username, onLogout, publicKey }: HeaderProps) {
                 className="flex items-center space-x-2 sm:space-x-3 p-2 sm:p-3 bg-gray-800/60 hover:bg-gray-700/60 border border-gray-700/50 rounded-xl transition-all duration-200 group"
               >
                 {/* Avatar */}
-                <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                <div className="w-6 h-6 sm:w-8 sm:h-8 bg-gradient-to-r from-blue-600 to-emerald-600 rounded-full flex items-center justify-center">
                   <span className="text-xs sm:text-sm font-bold text-white">
                     {username.charAt(0).toUpperCase()}
                   </span>
@@ -108,7 +108,7 @@ export default function Header({ username, onLogout, publicKey }: HeaderProps) {
                   {/* Account Info */}
                   <div className="p-4 border-b border-gray-700/50">
                     <div className="flex items-center space-x-3 mb-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                      <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-emerald-600 rounded-full flex items-center justify-center">
                         <span className="text-lg font-bold text-white">
                           {username.charAt(0).toUpperCase()}
                         </span>

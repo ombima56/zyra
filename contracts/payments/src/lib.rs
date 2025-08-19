@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, log, Address, Env, Symbol};
+use soroban_sdk::{contract, contractimpl, Address, Env, Symbol};
 
 #[contract]
 pub struct PaymentsContract;
@@ -46,8 +46,6 @@ impl PaymentsContract {
         // Perform the transfer
         token_client.transfer(&from, &to, &amount);
 
-        // Log the transfer for tracking
-        log!(&env, "Transfer: {} tokens from {} to {}", amount, from, to);
     }
 
     // Deposit function for admin
@@ -80,13 +78,6 @@ impl PaymentsContract {
         let contract_address = env.current_contract_address();
         token_client.transfer(&depositor, &contract_address, &amount);
 
-        // Log the deposit
-        log!(
-            &env,
-            "Deposit: {} stroops from {} to contract",
-            amount,
-            depositor
-        );
     }
 
     // Get the balance of a user account using the token contract
@@ -99,10 +90,6 @@ impl PaymentsContract {
                 token_client.balance(&user)
             }
             None => {
-                log!(
-                    &env,
-                    "Contract not initialized with token address, returning 0 balance"
-                );
                 0
             }
         }
@@ -167,11 +154,5 @@ impl PaymentsContract {
         // Transfer from contract to specified address
         token_client.transfer(&contract_address, &to, &amount);
 
-        log!(
-            &env,
-            "Withdrawal: {} tokens from contract to {}",
-            amount,
-            to
-        );
     }
 }
