@@ -6,7 +6,12 @@ import Actions from "@/components/dashboard/Actions";
 import SendMoneyForm from "@/components/dashboard/SendMoneyForm";
 import DepositForm from "@/components/dashboard/DepositForm";
 import TransactionList from "@/components/dashboard/TransactionList";
-import { getNativeBalance, transferNative } from "@/lib/stellar";
+import {
+  getNativeBalance,
+  transferNative,
+  getTransactionHistory,
+  StellarTransaction,
+} from "@/lib/stellar";
 
 type Wallet = {
   id: number;
@@ -29,11 +34,15 @@ export default function DashboardPage() {
   const [secretKey, setSecretKey] = useState<string | null>(null);
   const [balance, setBalance] = useState<string | null>(null);
   const [whatsappVerified, setWhatsappVerified] = useState(false);
-  const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
+
+  const [stellarTransactions, setStellarTransactions] = useState<
+    StellarTransaction[]
+  >([]);
+
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [depositPhone, setDepositPhone] = useState("");
-  // Updated state to a more structured notification object
+
   const [notification, setNotification] = useState<{
     type: "success" | "error";
     text: string;
@@ -42,13 +51,12 @@ export default function DashboardPage() {
   const [showDepositForm, setShowDepositForm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Effect to automatically clear notifications after a duration
   useEffect(() => {
     if (notification) {
       const timer = setTimeout(() => {
         setNotification(null);
-      }, 5000); // Notification will disappear after 5 seconds
-      return () => clearTimeout(timer); // Cleanup function
+      }, 5000);
+      return () => clearTimeout(timer);
     }
   }, [notification]);
 
@@ -58,7 +66,6 @@ export default function DashboardPage() {
       try {
         const res = await fetch("/api/user");
         if (!res.ok) {
-          // If session is not found or unauthorized, redirect to login
           if (typeof window !== "undefined") {
             window.location.href = "/login";
           }
@@ -92,30 +99,44 @@ export default function DashboardPage() {
       const balanceResult = await getNativeBalance(pk);
       setBalance(balanceResult);
 
-      // Update balance in the database
       await fetch("/api/user/balance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ publicKey: pk, balance: balanceResult }),
       });
 
-      const res = await fetch(`/api/transactions?publicKey=${pk}`);
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to fetch transactions");
-      }
-      const transactionsData = await res.json();
-      setTransactions(transactionsData);
+      try {
+        const stellarTxHistory = await getTransactionHistory(pk);
+        setStellarTransactions(stellarTxHistory);
+        console.log("Fetched Stellar transactions:", stellarTxHistory);
+      } catch (txError) {
+        console.error("Error fetching Stellar transactions:", txError);
+        setStellarTransactions([]);
 
-      setNotification(null); // Clear notification on successful fetch
+        if (
+          !(
+            txError instanceof Error &&
+            txError.message.includes("Account not found")
+          )
+        ) {
+          setNotification({
+            type: "error",
+            text: "Failed to load transaction history. Balance loaded successfully.",
+          });
+        }
+      }
+
+      if (notification?.type === "error") {
+        setNotification(null);
+      }
     } catch (error) {
       console.error("Error fetching data:", error);
-      // Use the new notification state
       setNotification({
         type: "error",
-        text: `❌ Failed to load data. Please try again.`,
+        text: `❌ Failed to load account data. Please try again.`,
       });
       setBalance("0.00");
+      setStellarTransactions([]);
     } finally {
       setIsLoading(false);
     }
@@ -171,7 +192,6 @@ export default function DashboardPage() {
     setNotification(null);
     setIsLoading(true);
 
-    // Store the initial balance to compare after transaction
     const initialBalance = currentBalance;
 
     try {
@@ -179,13 +199,12 @@ export default function DashboardPage() {
 
       setNotification({
         type: "success",
-        text: `✅ Successfully sent ${amount} to ${recipient.slice(
+        text: `✅ Successfully sent ${amount} XLM to ${recipient.slice(
           0,
           8
         )}...${recipient.slice(-8)}`,
       });
 
-      // Clear form and refresh data
       setRecipient("");
       setAmount("");
       setShowSendForm(false);
@@ -193,7 +212,6 @@ export default function DashboardPage() {
     } catch (err) {
       console.error("Transfer error:", err);
 
-      // If we get an XDR parsing error, check if the balance actually changed
       if (
         err instanceof Error &&
         (err.message.includes("Transaction processing completed") ||
@@ -201,19 +219,15 @@ export default function DashboardPage() {
           err.message.includes("XDR"))
       ) {
         try {
-          // Wait a moment for the transaction to be processed
           await new Promise((resolve) => setTimeout(resolve, 3000));
 
-          // Refresh the balance
           const newBalance = await getNativeBalance(publicKey);
           const newBalanceNum = parseFloat(newBalance);
 
-          // If the balance decreased by approximately the sent amount, the transaction likely succeeded
           if (initialBalance - newBalanceNum >= numAmount * 0.99) {
-            // Allow for small fee differences
             setNotification({
               type: "success",
-              text: `✅ Transaction completed! Sent ${amount} to ${recipient.slice(
+              text: `✅ Transaction completed! Sent ${amount} XLM to ${recipient.slice(
                 0,
                 8
               )}...${recipient.slice(-8)}`,
@@ -225,7 +239,6 @@ export default function DashboardPage() {
             setShowSendForm(false);
             await fetchData(publicKey);
           } else {
-            // Balance didn't change as expected, show error
             setNotification({
               type: "error",
               text: "⚠️ Transaction status unclear. Please check your balance and transaction history.",
@@ -242,7 +255,6 @@ export default function DashboardPage() {
           });
         }
       } else {
-        // Regular error handling
         setNotification({
           type: "error",
           text: `❌ ${(err as Error).message}`,
@@ -322,7 +334,6 @@ export default function DashboardPage() {
     } catch (error) {
       console.error("Logout error:", error);
     } finally {
-      // Redirect to login page regardless of API call success
       if (typeof window !== "undefined") {
         window.location.href = "/login";
       }
@@ -334,7 +345,7 @@ export default function DashboardPage() {
       {/* Header */}
       <Header
         username={getUsername()}
-        onLogout={handleLogout} // Use the new handleLogout function
+        onLogout={handleLogout}
         publicKey={publicKey || ""}
       />
 
@@ -356,9 +367,7 @@ export default function DashboardPage() {
         {/* Global Notification */}
         {!whatsappVerified && (
           <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
-            <div
-              className={`p-4 rounded-xl text-center bg-yellow-500/10 border border-yellow-500/20 text-yellow-400`}
-            >
+            <div className="p-4 rounded-xl text-center bg-yellow-500/10 border border-yellow-500/20 text-yellow-400">
               Please verify your WhatsApp account to enable all features.
             </div>
           </div>
@@ -401,11 +410,12 @@ export default function DashboardPage() {
           />
         )}
 
-        {/* Transactions */}
+        {/* Stellar Transactions */}
         <TransactionList
-          transactions={transactions}
+          transactions={stellarTransactions}
           isLoading={isLoading}
           onRefresh={() => publicKey && fetchData(publicKey)}
+          userAddress={publicKey || undefined}
         />
       </main>
     </div>
