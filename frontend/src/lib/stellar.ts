@@ -12,6 +12,7 @@ import {
   rpc,
   Transaction,
   Asset,
+  Horizon,
 } from "@stellar/stellar-sdk";
 
 interface StellarBalance {
@@ -23,11 +24,25 @@ interface StellarBalance {
   asset_issuer?: string;
 }
 
-// Stellar tokens typically use 7 decimal places
+export interface StellarTransaction {
+  id: string;
+  hash: string;
+  type: "SENT" | "RECEIVED" | "OTHER";
+  amount: string;
+  fee: string;
+  from: string;
+  to: string;
+  asset: string;
+  memo?: string;
+  createdAt: string;
+  successful: boolean;
+  operationType: string;
+  ledger: string;
+}
+
 const STELLAR_DECIMALS = 7;
 const DECIMAL_MULTIPLIER = BigInt(10 ** STELLAR_DECIMALS);
 
-// The contract ID is essential for all contract interactions.
 const contractId = process.env.NEXT_PUBLIC_PAYMENTS_CONTRACT_ID!;
 
 // Configure the Soroban RPC server
@@ -38,9 +53,19 @@ const networkPassphrase =
   process.env.NEXT_PUBLIC_STELLAR_NETWORK || Networks.TESTNET;
 
 const server = new rpc.Server(rpcUrl);
+const horizonUrl = "https://horizon-testnet.stellar.org";
+const horizonServer = new Horizon.Server(horizonUrl);
 
 /**
- * Converts a JavaScript BigInt into a Stellar XDR i128 ScVal.
+ * Converts a BigInt to a ScVal that represents an i128.
+ *
+ * Takes advantage of the fact that the lower 64 bits of a BigInt are
+ * already a valid `xdr.Int64` and that the upper 64 bits can be
+ * represented as a second `xdr.Int64`, which can then be used to
+ * construct an `xdr.Int128Parts` which is a valid `xdr.ScVal`.
+ *
+ * @param value - The BigInt value to convert
+ * @returns An `xdr.ScVal` that represents the given `BigInt` as an i128
  */
 function bigIntToI128ScVal(value: bigint): xdr.ScVal {
   const hi = new xdr.Int64(value >> BigInt(64));
@@ -48,10 +73,6 @@ function bigIntToI128ScVal(value: bigint): xdr.ScVal {
   return xdr.ScVal.scvI128(new xdr.Int128Parts({ hi, lo }));
 }
 
-/**
- * Converts decimal amount to stroops (contract units)
- * Example: 1.5 -> 15000000 (1.5 * 10^7)
- */
 export const decimalToStroops = (decimalAmount: string): bigint => {
   const decimal = parseFloat(decimalAmount);
   if (isNaN(decimal)) {
@@ -61,23 +82,20 @@ export const decimalToStroops = (decimalAmount: string): bigint => {
 };
 
 /**
- * Converts stroops (contract units) to decimal amount
- * Example: 15000000 -> "1.5000000"
+ * Converts a stroop amount to a decimal string.
+ *
+ * @param stroops - A stroop amount to convert
+ * @returns A string representing the decimal value of the given stroop amount
  */
 export const stroopsToDecimal = (stroops: bigint): string => {
   const decimal = Number(stroops) / Number(DECIMAL_MULTIPLIER);
-  return decimal.toFixed(7); // Always show 7 decimal places
+  return decimal.toFixed(7);
 };
 
-/**
- * Formats balance for display (removes trailing zeros)
- * Example: "1.5000000" -> "1.50"
- */
 export const formatBalance = (balance: string): string => {
   const num = parseFloat(balance);
   if (num === 0) return "0.00";
 
-  // Remove trailing zeros but keep at least 2 decimal places
   return num
     .toFixed(7)
     .replace(/\.?0+$/, "")
@@ -85,7 +103,10 @@ export const formatBalance = (balance: string): string => {
 };
 
 /**
- * Creates a new Stellar keypair.
+ * Generates a new random Stellar keypair.
+ *
+ * @returns An object containing the public and secret keys for the newly
+ * generated keypair.
  */
 export const createKeypair = (): { publicKey: string; secret: string } => {
   const keypair = Keypair.random();
@@ -110,7 +131,6 @@ export const getBalance = async (userAddress: string): Promise<string> => {
     console.log("Getting balance for:", userAddress);
     console.log("Contract ID:", contractId);
 
-    // Create Address objects properly
     const userAddressObj = Address.fromString(userAddress);
     const contractAddress = Address.fromString(contractId);
 
@@ -166,7 +186,6 @@ export const getBalance = async (userAddress: string): Promise<string> => {
       return "0.00";
     }
 
-    // Parse the result
     const resultXdr = simulationResponse.result.retval;
     const result = scValToNative(resultXdr);
 
@@ -181,7 +200,6 @@ export const getBalance = async (userAddress: string): Promise<string> => {
   } catch (error) {
     console.error("Error getting balance:", error);
 
-    // For unexpected errors, return 0.00 as a fallback
     if (
       error instanceof Error &&
       !error.message.includes("Balance query failed")
@@ -195,8 +213,15 @@ export const getBalance = async (userAddress: string): Promise<string> => {
 };
 
 /**
- * Creates and submits a Soroban transaction using a secret key for signing.
- * SAFE against "Bad union switch" by avoiding XDR decoding from result objects.
+ * Submits a Soroban transaction to the network.
+ *
+ * @param {string} userAddress - The Stellar address of the user.
+ * @param {string} secretKey - The secret key of the user.
+ * @param {xdr.Operation} operation - The operation to be submitted to the contract.
+ *
+ * @returns {Promise<void>}
+ *
+ * @throws {Error} If transaction submission fails.
  */
 async function submitSorobanTransaction(
   userAddress: string,
@@ -206,12 +231,9 @@ async function submitSorobanTransaction(
   try {
     const keypair = Keypair.fromSecret(secretKey);
 
-    // Get the user's account details - this returns an AccountResponse, not an Account
     const accountResponse = await server.getAccount(userAddress);
-    // Create an Account object using the sequence from the response
     const account = new Account(userAddress, accountResponse.sequenceNumber());
 
-    // Build the transaction
     let transaction = new TransactionBuilder(account, {
       fee: BASE_FEE,
       networkPassphrase,
@@ -220,34 +242,27 @@ async function submitSorobanTransaction(
       .setTimeout(TimeoutInfinite)
       .build();
 
-    // Simulate first to get proper fee and auth
     const simulationResponse = await server.simulateTransaction(transaction);
 
     if (rpc.Api.isSimulationError(simulationResponse)) {
       throw new Error(`Simulation failed: ${simulationResponse.error}`);
     }
 
-    // Assemble the transaction with simulation results
     transaction = rpc
       .assembleTransaction(transaction, simulationResponse)
       .build();
 
-    // Sign the transaction
     transaction.sign(keypair);
 
-    // Submit the signed transaction
     const transactionResponse = await server.sendTransaction(transaction);
 
     if (transactionResponse.status === "ERROR") {
-      // Do NOT access errorResult (can trigger XDR decoding)
       console.error("sendTransaction ERROR:", transactionResponse);
       throw new Error("Transaction submission failed.");
     }
 
-    // Wait for the transaction to be included in a ledger
     let attempts = 0;
-    const maxAttempts = 30; // ~30 seconds
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const maxAttempts = 30;
     let getResponse: any;
 
     while (attempts < maxAttempts) {
@@ -256,13 +271,11 @@ async function submitSorobanTransaction(
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (msg.includes("Bad union switch") || msg.includes("XDR")) {
-          // Treat this as an undecodable status; likely the tx made it to the network.
           console.warn(
             "Non-fatal status decode error (likely SDK/XDR mismatch). Assume submission ok; verify externally if needed."
           );
-          return; // Exit gracefully without throwing
+          return;
         }
-        // Other errors are real
         throw e;
       }
 
@@ -272,7 +285,6 @@ async function submitSorobanTransaction(
       }
 
       if (getResponse.status === rpc.Api.GetTransactionStatus.FAILED) {
-        // Do NOT read resultXdr to avoid union decode
         console.error("Transaction FAILED (no XDR decode):", getResponse);
         throw new Error(
           "Transaction failed. This could be due to insufficient balance, invalid arguments, or network issues."
@@ -285,7 +297,6 @@ async function submitSorobanTransaction(
         continue;
       }
 
-      // Any other status: log and return
       console.log("Transaction status:", getResponse.status);
       return;
     }
@@ -295,7 +306,6 @@ async function submitSorobanTransaction(
     );
   } catch (error) {
     console.error("Error submitting Soroban transaction:", error);
-    // Normalize Bad union switch anywhere in the call stack
     if (
       error instanceof Error &&
       (error.message.includes("Bad union switch") ||
@@ -329,7 +339,6 @@ export const transfer = async (
       );
     }
 
-    // Create Address objects properly
     const fromAddress = Address.fromString(from);
     const toAddress = Address.fromString(to);
     const contractAddress = Address.fromString(contractId);
@@ -357,7 +366,6 @@ export const transfer = async (
     await submitSorobanTransaction(from, secretKey, operation);
   } catch (error) {
     console.error("Error transferring tokens:", error);
-    // Normalize XDR/union parsing issues
     if (
       error instanceof Error &&
       (error.message.includes("Bad union switch") ||
@@ -389,7 +397,6 @@ export const deposit = async (
       );
     }
 
-    // Create Address objects properly
     const depositorAddress = Address.fromString(depositor);
     const contractAddress = Address.fromString(contractId);
     const amountInStroops = decimalToStroops(amount);
@@ -429,30 +436,31 @@ export const deposit = async (
 };
 
 /**
- * Gets the native XLM balance of a user account.
+ * Gets the native XLM balance of a user from the Stellar network.
+ * Returns the balance as a formatted decimal string (e.g., "0.00", "1.50")
+ *
+ * @param {string} userAddress - The Stellar address of the user.
+ *
+ * @throws {Error} If balance retrieval fails.
  */
+
 export const getNativeBalance = async (
   userAddress: string
 ): Promise<string> => {
   try {
-    // 1. Create a ledger key for the account.
     const accountId = Keypair.fromPublicKey(userAddress).xdrPublicKey();
     const ledgerKey = xdr.LedgerKey.account(
       new xdr.LedgerKeyAccount({ accountId })
     );
 
-    // 2. Fetch the ledger entry.
     const response = await server.getLedgerEntries(ledgerKey);
 
     if (response.entries && response.entries.length > 0) {
-      // 3. Parse the XDR response to get the balance.
       const entry = response.entries[0];
       const accountEntry = entry.val.account();
 
-      // The balance is in stroops.
       const balanceInStroops = accountEntry.balance().toString();
 
-      // Convert stroops to XLM.
       const balanceInXLM = Number(balanceInStroops) / 10000000;
 
       return balanceInXLM.toFixed(2);
@@ -489,7 +497,6 @@ export const transferNative = async (
       `Transferring ${amount} XLM from ${sourcePublicKey} to ${recipientPublicKey}`
     );
 
-    // Check if the recipient account exists
     try {
       await server.getAccount(recipientPublicKey);
     } catch (error) {
@@ -504,14 +511,12 @@ export const transferNative = async (
       throw error;
     }
 
-    // Load the source account - this returns an AccountResponse
     const sourceAccountResponse = await server.getAccount(sourcePublicKey);
     const account = new Account(
       sourcePublicKey,
       sourceAccountResponse.sequenceNumber()
     );
 
-    // Build the transaction
     const transaction = new TransactionBuilder(account, {
       fee: BASE_FEE,
       networkPassphrase,
@@ -526,25 +531,21 @@ export const transferNative = async (
       .setTimeout(TimeoutInfinite)
       .build();
 
-    // Sign the transaction
     transaction.sign(sourceKeypair);
 
     console.log("Submitting transaction...");
 
-    // Submit the transaction
     const transactionResponse = await server.sendTransaction(transaction);
 
     console.log("Transaction submitted:", transactionResponse.hash);
 
     if (transactionResponse.status === "ERROR") {
-      // Do NOT access errorResult
       console.error("sendTransaction ERROR:", transactionResponse);
       throw new Error("Transaction submission failed.");
     }
 
-    // Wait for the transaction to be included in a ledger with better error handling
     let attempts = 0;
-    const maxAttempts = 30; // 30 seconds timeout
+    const maxAttempts = 30;
 
     while (attempts < maxAttempts) {
       let getResponse: Awaited<ReturnType<typeof server.getTransaction>>;
@@ -583,7 +584,6 @@ export const transferNative = async (
         continue;
       }
 
-      // Any other status: log and return
       console.log("Transaction status:", getResponse);
       return;
     }
@@ -611,7 +611,6 @@ export const transferNative = async (
         error.message.includes("Bad union switch") ||
         error.message.includes("XDR")
       ) {
-        // Handle XDR parsing errors gracefully
         throw new Error(
           "Transaction processing completed, but status confirmation had an error. Please check your balance to confirm if the transaction succeeded."
         );
@@ -620,4 +619,229 @@ export const transferNative = async (
 
     throw error;
   }
+};
+
+/**
+ * Fetches and processes transaction history for a Stellar account.
+ * Returns formatted transaction data suitable for display.
+ */
+export const getTransactionHistory = async (
+  userAddress: string
+): Promise<StellarTransaction[]> => {
+  try {
+    console.log("Fetching transaction history for:", userAddress);
+
+    const response = await horizonServer
+      .transactions()
+      .forAccount(userAddress)
+      .order("desc")
+      .limit(50)
+      .includeFailed(true)
+      .call();
+
+    console.log("Transaction history response:", response);
+
+    const processedTransactions: StellarTransaction[] = [];
+
+    for (const tx of response.records) {
+      try {
+        const operationsResponse = await horizonServer
+          .operations()
+          .forTransaction(tx.id)
+          .call();
+
+        for (const op of operationsResponse.records) {
+          let transactionData: Partial<StellarTransaction> = {
+            id: `${tx.id}-${op.id}`,
+            hash: tx.hash,
+            createdAt: tx.created_at,
+            successful: tx.successful,
+            fee: (Number(tx.fee_charged) / 10_000_000).toFixed(7),
+            ledger: tx.ledger.toString(),
+            operationType: op.type,
+            memo: getCleanMemo(tx.memo, tx.memo_type),
+          };
+
+          if (op.type === "payment") {
+            const paymentOp = op as any;
+
+            if (paymentOp.asset_type === "native") {
+              transactionData = {
+                ...transactionData,
+                type: paymentOp.from === userAddress ? "SENT" : "RECEIVED",
+                amount: paymentOp.amount.toString(),
+                from: paymentOp.from,
+                to: paymentOp.to,
+                asset: "XLM",
+              };
+              processedTransactions.push(transactionData as StellarTransaction);
+            }
+          } else if (op.type === "create_account") {
+            const createAccountOp = op as any;
+            transactionData = {
+              ...transactionData,
+              type:
+                createAccountOp.funder === userAddress ? "SENT" : "RECEIVED",
+              amount: createAccountOp.starting_balance.toString(),
+              from: createAccountOp.funder,
+              to: createAccountOp.account,
+              asset: "XLM",
+              operationType: "Account Creation",
+            };
+            processedTransactions.push(transactionData as StellarTransaction);
+          } else if (op.type === "account_merge") {
+            const mergeOp = op as any;
+            transactionData = {
+              ...transactionData,
+              type: mergeOp.account === userAddress ? "SENT" : "RECEIVED",
+              amount: "0",
+              from: mergeOp.account,
+              to: mergeOp.into,
+              asset: "XLM",
+              operationType: "Account Merge",
+            };
+            processedTransactions.push(transactionData as StellarTransaction);
+          } else if (op.type === "invoke_host_function") {
+            const invokeOp = op as any;
+            transactionData = {
+              ...transactionData,
+              type: "OTHER",
+              amount: "0",
+              from: invokeOp.source_account || userAddress,
+              to: "Smart Contract",
+              asset: "XLM",
+              operationType: "Smart Contract Call",
+              memo: getCleanMemo(tx.memo, tx.memo_type),
+            };
+            processedTransactions.push(transactionData as StellarTransaction);
+          } else {
+            if (
+              op.source_account === userAddress ||
+              tx.source_account === userAddress
+            ) {
+              transactionData = {
+                ...transactionData,
+                type: "OTHER",
+                amount: "0",
+                from: op.source_account || tx.source_account || userAddress,
+                to: "N/A",
+                asset: "XLM",
+                operationType: formatOperationType(op.type),
+              };
+              processedTransactions.push(transactionData as StellarTransaction);
+            }
+          }
+        }
+      } catch (opError) {
+        console.error(
+          `Error processing operations for transaction ${tx.id}:`,
+          opError
+        );
+
+        const fallbackTransaction: StellarTransaction = {
+          id: tx.id,
+          hash: tx.hash,
+          type: "OTHER",
+          amount: "0",
+          fee: (Number(tx.fee_charged) / 10_000_000).toFixed(7),
+          from: tx.source_account,
+          to: "Unknown",
+          asset: "XLM",
+          memo: getCleanMemo(tx.memo, tx.memo_type),
+          createdAt: tx.created_at,
+          successful: tx.successful,
+          operationType: "Unknown Operation",
+          ledger: tx.ledger.toString(),
+        };
+        processedTransactions.push(fallbackTransaction);
+      }
+    }
+
+    processedTransactions.sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+
+    console.log("Processed transactions:", processedTransactions);
+    return processedTransactions;
+  } catch (error) {
+    console.error("Error fetching transaction history:", error);
+
+    if (error instanceof Error && error.message.includes("Account not found")) {
+      console.log("Account not found, returning empty transaction history");
+      return [];
+    }
+
+    throw new Error(
+      `Failed to fetch transaction history: ${
+        error instanceof Error ? error.message : "Unknown error"
+      }`
+    );
+  }
+};
+
+function getCleanMemo(memo: any, memoType: any): string | undefined {
+  if (!memo || memo === null || memo === "") return undefined;
+
+  if (memoType === "text" && typeof memo === "string") {
+    if (
+      memo.includes("function") ||
+      memo.includes("return") ||
+      memo.length > 100
+    ) {
+      return undefined;
+    }
+    return memo;
+  }
+
+  return undefined;
+}
+
+function formatOperationType(opType: string): string {
+  const formatted = opType
+    .replace(/_/g, " ")
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+
+  // Handle specific cases
+  switch (opType) {
+    case "invoke_host_function":
+      return "Smart Contract";
+    case "create_account":
+      return "Account Creation";
+    case "account_merge":
+      return "Account Merge";
+    case "manage_data":
+      return "Manage Data";
+    case "bump_sequence":
+      return "Bump Sequence";
+    default:
+      return formatted;
+  }
+}
+
+/**
+ * Formats XLM amount for display
+ */
+export const formatXLMAmount = (amount: string): string => {
+  const num = parseFloat(amount);
+  if (num === 0) return "0.00";
+
+  if (num >= 1) {
+    return num.toFixed(2);
+  } else if (num >= 0.01) {
+    return num.toFixed(4);
+  } else {
+    return num.toFixed(7);
+  }
+};
+
+export const truncateAddress = (
+  address: string,
+  startChars = 8,
+  endChars = 8
+): string => {
+  if (address.length <= startChars + endChars) return address;
+  return `${address.slice(0, startChars)}...${address.slice(-endChars)}`;
 };
