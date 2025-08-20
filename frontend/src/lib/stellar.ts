@@ -14,6 +14,7 @@ import {
   Asset,
   Horizon,
 } from "@stellar/stellar-sdk";
+import * as bip39 from "bip39";
 
 interface StellarBalance {
   asset_type: string;
@@ -108,12 +109,26 @@ export const formatBalance = (balance: string): string => {
  * @returns An object containing the public and secret keys for the newly
  * generated keypair.
  */
-export const createKeypair = (): { publicKey: string; secret: string } => {
-  const keypair = Keypair.random();
+export const createKeypair = (): { publicKey: string; secret: string; mnemonic: string } => {
+  const mnemonic = bip39.generateMnemonic(128); // 12 words
+  const seed = bip39.mnemonicToSeedSync(mnemonic);
+  const keypair = Keypair.fromRawEd25519Seed(seed.slice(0, 32));
   return {
     publicKey: keypair.publicKey(),
     secret: keypair.secret(),
+    mnemonic,
   };
+};
+
+/**
+ * Gets a keypair from a mnemonic phrase.
+ *
+ * @param mnemonic - The mnemonic phrase.
+ * @returns A Stellar keypair.
+ */
+export const getKeypairFromMnemonic = (mnemonic: string): Keypair => {
+  const seed = bip39.mnemonicToSeedSync(mnemonic);
+  return Keypair.fromRawEd25519Seed(seed.slice(0, 32));
 };
 
 /**
