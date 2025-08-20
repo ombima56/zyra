@@ -6,10 +6,25 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
+import { getKeypairFromMnemonic } from "@/lib/stellar";
+import CryptoJS from "crypto-js";
+
+// Removed global sessionEncryptionKey variable
+
+const generateAndStoreSessionKey = (): string => {
+  const key = CryptoJS.lib.WordArray.random(256 / 8).toString();
+  sessionStorage.setItem("sessionEncryptionKey", key); // Store key in sessionStorage
+  return key;
+};
+
+const encryptSecretKey = (secret: string, key: string): string => {
+  return CryptoJS.AES.encrypt(secret, key).toString();
+};
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mnemonic, setMnemonic] = useState(""); // State for mnemonic input
   const [isLoading, setIsLoading] = useState(false);
   const [formMessage, setFormMessage] = useState<{
     type: "success" | "error";
@@ -34,6 +49,7 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
+      // Step 1: Authenticate with email and password
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -48,12 +64,28 @@ export default function LoginPage() {
         }
       }
 
-      setFormMessage({
-        type: "success",
-        text: "✅ Login successful! Redirecting...",
-      });
+      // Step 2: If email/password is correct, verify mnemonic and store encrypted secretKey client-side
+      try {
+        const keypair = getKeypairFromMnemonic(mnemonic);
+        // In a real app, you'd compare keypair.publicKey() with the user's stored public key from the server
+        // For now, we assume the mnemonic is correct if it generates a valid keypair.
 
-      router.push("/dashboard");
+        const secretKey = keypair.secret();
+        const encryptionKey = generateAndStoreSessionKey(); // Generate and store key in sessionStorage
+        const encryptedSecret = encryptSecretKey(secretKey, encryptionKey);
+
+        sessionStorage.setItem("encryptedUserSecretKey", encryptedSecret);
+
+        setFormMessage({
+          type: "success",
+          text: "✅ Login successful! Redirecting...",
+        });
+
+        router.push("/dashboard");
+      } catch (mnemonicError) {
+        console.error("Mnemonic verification error:", mnemonicError);
+        throw new Error("Invalid seed phrase. Please try again.");
+      }
     } catch (error: any) {
       console.error("Login error:", error);
       setFormMessage({ type: "error", text: `❌ ${error.message}` });
@@ -91,6 +123,13 @@ export default function LoginPage() {
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <Input
+              type="text"
+              placeholder="Your 12-word seed phrase"
+              value={mnemonic}
+              onChange={(e) => setMnemonic(e.target.value)}
               required
             />
             <Button type="submit" disabled={isLoading} className="w-full">

@@ -21,7 +21,19 @@ import {
   Operation,
   Asset,
   Account,
+  Keypair
 } from "@stellar/stellar-sdk";
+import CryptoJS from "crypto-js";
+
+// Function to get the session encryption key from sessionStorage
+const getSessionEncryptionKey = (): string | null => {
+  return sessionStorage.getItem("sessionEncryptionKey");
+};
+
+const decryptSecretKey = (encryptedSecret: string, key: string): string => {
+  const bytes = CryptoJS.AES.decrypt(encryptedSecret, key);
+  return bytes.toString(CryptoJS.enc.Utf8);
+};
 
 export default function DashboardPage() {
   const [publicKey, setPublicKey] = useState<string | null>(null);
@@ -35,7 +47,6 @@ export default function DashboardPage() {
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [depositPhone, setDepositPhone] = useState("");
-  const [userMnemonic, setUserMnemonic] = useState(""); // To store mnemonic for signing
 
   const [notification, setNotification] = useState<{
     type: "success" | "error";
@@ -144,14 +155,25 @@ export default function DashboardPage() {
       return;
     }
 
-    // Prompt for mnemonic for signing
-    const mnemonic = prompt(
-      "Please enter your seed phrase to confirm the transaction:"
-    );
-    if (!mnemonic) {
+    const encryptedSecret = sessionStorage.getItem("encryptedUserSecretKey");
+    const encryptionKey = getSessionEncryptionKey();
+
+    if (!encryptedSecret || !encryptionKey) {
       setNotification({
         type: "error",
-        text: "Seed phrase is required to sign the transaction.",
+        text: "Secret key not available. Please log in again.",
+      });
+      return;
+    }
+
+    let secretKey: string;
+    try {
+      secretKey = decryptSecretKey(encryptedSecret, encryptionKey);
+    } catch (e) {
+      console.error("Decryption failed:", e);
+      setNotification({
+        type: "error",
+        text: "Failed to decrypt secret key. Please log in again.",
       });
       return;
     }
@@ -198,7 +220,7 @@ export default function DashboardPage() {
     setIsLoading(true);
 
     try {
-      const keypair = getKeypairFromMnemonic(mnemonic);
+      const keypair = Keypair.fromSecret(secretKey);
       const sourceAccount = await new Account(
         keypair.publicKey(),
         (await server.getAccount(keypair.publicKey())).sequenceNumber()
@@ -324,6 +346,8 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     try {
+      sessionStorage.removeItem("encryptedUserSecretKey"); // Clear encrypted secret key on logout
+      sessionStorage.removeItem("sessionEncryptionKey"); // Clear encryption key on logout
       await fetch("/api/logout", {
         method: "POST",
       });
