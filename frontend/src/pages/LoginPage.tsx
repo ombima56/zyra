@@ -1,6 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import Link from "next/link";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -43,9 +48,6 @@ export default function LoginPage() {
         }
       }
 
-      // No need to decrypt or store secretKey on client-side anymore
-      // const data = await res.json(); // This data is now just { publicKey: user.publicKey }
-
       setFormMessage({
         type: "success",
         text: "✅ Login successful! Redirecting...",
@@ -61,59 +63,48 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100 flex flex-col items-center justify-center p-4">
-      <div className="max-w-md w-full text-center bg-gray-800 p-8 rounded-xl shadow-lg">
-        <h1 className="text-3xl font-bold mb-6">Login to Zrya</h1>
-
-        {formMessage && (
-          <div
-            className={`p-4 rounded-xl mb-6 text-sm ${
-              formMessage.type === "success"
-                ? "bg-green-500/10 border border-green-500/20 text-green-400"
-                : "bg-red-500/10 border border-red-500/20 text-red-400"
-            }`}
-          >
-            <p>{formMessage.text}</p>
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <input
+    <main className="flex min-h-screen flex-col items-center justify-center p-12">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle className="text-3xl font-bold text-center">
+            Login to Zrya
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {formMessage && (
+            <Alert
+              variant={formMessage.type === "error" ? "destructive" : "default"}
+            >
+              <AlertDescription>{formMessage.text}</AlertDescription>
+            </Alert>
+          )}
+          <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+            <Input
               type="email"
               placeholder="Email"
-              className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
             />
-          </div>
-          <div>
-            <input
+            <Input
               type="password"
               placeholder="Password"
-              className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
             />
-          </div>
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
-          >
-            {isLoading ? "Logging in..." : "Login"}
-          </button>
-        </form>
-
-        <p className="mt-6 text-gray-400 text-sm">
-          Don't have an account?{" "}
-          <a href="/register" className="text-blue-500 hover:underline">
-            Register here
-          </a>
-        </p>
-      </div>
-    </div>
+            <Button type="submit" disabled={isLoading} className="w-full">
+              {isLoading ? "Logging in..." : "Login"}
+            </Button>
+          </form>
+          <p className="mt-6 text-center text-sm text-muted-foreground">
+            Don't have an account?{" "}
+            <Link href="/register" className="text-accent hover:underline">
+              Register here
+            </Link>
+          </p>
+        </CardContent>
+      </Card>
+    </main>
   );
 }

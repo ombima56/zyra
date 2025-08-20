@@ -1,6 +1,11 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import Link from "next/link";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -42,91 +47,75 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100 flex flex-col items-center justify-center p-4">
-      <div className="max-w-md w-full text-center bg-gray-800 p-8 rounded-xl shadow-lg">
-        <h1 className="text-3xl font-bold mb-6">
-          {showVerification ? "Verify your WhatsApp" : "Register for Zrya"}
-        </h1>
+    <main className="flex min-h-screen flex-col items-center justify-center p-12">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle className="text-3xl font-bold text-center">
+            {showVerification ? "Verify your WhatsApp" : "Register for Zrya"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {message && (
+            <Alert variant={message.includes("✅") ? "default" : "destructive"}>
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
+          )}
 
-        {message && (
-          <div
-            className={`p-4 rounded-xl mb-6 ${
-              message.includes("✅")
-                ? "bg-green-500/10 border border-green-500/20 text-green-400"
-                : "bg-red-500/10 border border-red-500/20 text-red-400"
-            }`}
-          >
-            <p className="text-sm">{message}</p>
-          </div>
-        )}
-
-        {showVerification ? (
-          <div>
-            <p className="text-lg">
-              Send the following code to our WhatsApp number to verify your
-              account:
-            </p>
-            <p className="text-2xl font-bold my-2">+1 555 141 3984</p>
-            <p className="text-4xl font-bold my-4">{verificationCode}</p>
-            <p className="text-gray-400">
-              Once you have verified your account, you can{" "}
-              <a href="/login" className="text-blue-500 hover:underline">
-                log in
-              </a>
-              .
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <input
+          {showVerification ? (
+            <div className="text-center mt-4">
+              <p className="text-lg">
+                Send the following code to our WhatsApp number to verify your
+                account:
+              </p>
+              <p className="text-2xl font-bold my-2">+1 555 141 3984</p>
+              <p className="text-4xl font-bold my-4">{verificationCode}</p>
+              <p className="text-muted-foreground">
+                Once you have verified your account, you can{" "}
+                <Link href="/login" className="text-accent hover:underline">
+                  log in
+                </Link>
+                .
+              </p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+              <Input
                 type="email"
                 placeholder="Email"
-                className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
-            </div>
-            <div>
-              <input
+              <Input
                 type="tel"
                 placeholder="Phone Number"
-                className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required
               />
-            </div>
-            <div>
-              <input
+              <Input
                 type="password"
                 placeholder="Password"
-                className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
-            </div>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
-            >
-              {isLoading ? "Registering..." : "Register"}
-            </button>
-          </form>
-        )}
+              <Button type="submit" disabled={isLoading} className="w-full">
+                {isLoading ? "Registering..." : "Register"}
+              </Button>
+            </form>
+          )}
 
-        {!showVerification && (
-          <p className="mt-6 text-gray-400 text-sm">
-            Already have an account?{" "}
-            <a href="/login" className="text-blue-500 hover:underline">
-              Login here
-            </a>
-          </p>
-        )}
-      </div>
-    </div>
+          {!showVerification && (
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+              Already have an account?{" "}
+              <Link href="/login" className="text-accent hover:underline">
+                Login here
+              </Link>
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </main>
   );
 }
