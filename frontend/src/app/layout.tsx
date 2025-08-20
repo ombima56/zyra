@@ -2,6 +2,10 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { NotificationProvider } from "../contexts/NotificationContext";
+import { ThemeProvider } from "@/components/theme-provider"
+import Navbar from "../components/navbar/navbar";
+import { Toaster } from 'sonner';
+import Footer from "@/components/footer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -24,11 +28,37 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        style={{
+          position: 'relative',
+        }}
       >
-        <NotificationProvider>{children}</NotificationProvider>
+        <div style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          backgroundImage: `url('/african-map.svg')`,
+          backgroundRepeat: 'no-repeat',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          opacity: 0.1,
+          zIndex: -1,
+        }}></div>
+        <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+          <Navbar />
+          <NotificationProvider>{children}</NotificationProvider>
+          <Toaster />
+          <Footer />
+        </ThemeProvider>
       </body>
     </html>
   );
