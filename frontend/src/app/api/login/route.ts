@@ -5,11 +5,11 @@ import { createSession } from "@/lib/session"; // Import createSession
 
 export async function POST(request: Request) {
   try {
-    const { email, password, publicKey } = await request.json();
+    const { email, password } = await request.json();
 
-    if (!email || !password || !publicKey) {
+    if (!email || !password) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { error: "Missing email or password" },
         { status: 400 }
       );
     }
@@ -18,11 +18,7 @@ export async function POST(request: Request) {
       where: { email },
     });
 
-    if (
-      !user ||
-      !(await bcrypt.compare(password, user.password)) ||
-      user.publicKey !== publicKey
-    ) {
+    if (!user || !(await bcrypt.compare(password, user.password))) {
       return NextResponse.json(
         { error: "Invalid credentials" },
         { status: 401 }
