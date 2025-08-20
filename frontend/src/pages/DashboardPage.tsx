@@ -8,15 +8,23 @@ import DepositForm from "@/components/dashboard/DepositForm";
 import TransactionList from "@/components/dashboard/TransactionList";
 import {
   getNativeBalance,
-  transferNative,
   getTransactionHistory,
   StellarTransaction,
+  getKeypairFromMnemonic,
+  server,
 } from "@/lib/stellar";
 import { Card } from "@/components/ui/card";
+import {
+  TransactionBuilder,
+  Networks,
+  BASE_FEE,
+  Operation,
+  Asset,
+  Account,
+} from "@stellar/stellar-sdk";
 
 export default function DashboardPage() {
   const [publicKey, setPublicKey] = useState<string | null>(null);
-  const [secretKey, setSecretKey] = useState<string | null>(null);
   const [balance, setBalance] = useState<string | null>(null);
   const [whatsappVerified, setWhatsappVerified] = useState(false);
 
@@ -27,6 +35,7 @@ export default function DashboardPage() {
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [depositPhone, setDepositPhone] = useState("");
+  const [userMnemonic, setUserMnemonic] = useState(""); // To store mnemonic for signing
 
   const [notification, setNotification] = useState<{
     type: "success" | "error";
@@ -58,7 +67,6 @@ export default function DashboardPage() {
         }
         const userData = await res.json();
         setPublicKey(userData.publicKey);
-        setSecretKey(userData.secret);
         setBalance(userData.balance.toString());
         setWhatsappVerified(userData.whatsappVerified);
         console.log("Public Key from API:", userData.publicKey);
@@ -128,10 +136,22 @@ export default function DashboardPage() {
   };
 
   const handleSendMoney = async () => {
-    if (!publicKey || !secretKey) {
+    if (!publicKey) {
       setNotification({
         type: "error",
         text: "Please log in to send money.",
+      });
+      return;
+    }
+
+    // Prompt for mnemonic for signing
+    const mnemonic = prompt(
+      "Please enter your seed phrase to confirm the transaction:"
+    );
+    if (!mnemonic) {
+      setNotification({
+        type: "error",
+        text: "Seed phrase is required to sign the transaction.",
       });
       return;
     }
@@ -177,10 +197,46 @@ export default function DashboardPage() {
     setNotification(null);
     setIsLoading(true);
 
-    const initialBalance = currentBalance;
-
     try {
-      await transferNative(secretKey, recipient, amount);
+      const keypair = getKeypairFromMnemonic(mnemonic);
+      const sourceAccount = await new Account(
+        keypair.publicKey(),
+        (await server.getAccount(keypair.publicKey())).sequenceNumber()
+      );
+
+      const transaction = new TransactionBuilder(sourceAccount, {
+        fee: BASE_FEE,
+        networkPassphrase: Networks.TESTNET,
+      })
+        .addOperation(
+          Operation.payment({
+            destination: recipient,
+            asset: Asset.native(),
+            amount: amount,
+          })
+        )
+        .setTimeout(30) // 30 seconds timeout
+        .build();
+
+      transaction.sign(keypair);
+
+      const signedTransactionXDR = transaction.toXDR();
+
+      const res = await fetch("/api/transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          signedTransactionXDR,
+          recipient,
+          amount,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Transfer failed");
+      }
 
       setNotification({
         type: "success",
@@ -196,55 +252,10 @@ export default function DashboardPage() {
       await fetchData(publicKey);
     } catch (err) {
       console.error("Transfer error:", err);
-
-      if (
-        err instanceof Error &&
-        (err.message.includes("Transaction processing completed") ||
-          err.message.includes("Bad union switch") ||
-          err.message.includes("XDR"))
-      ) {
-        try {
-          await new Promise((resolve) => setTimeout(resolve, 3000));
-
-          const newBalance = await getNativeBalance(publicKey);
-          const newBalanceNum = parseFloat(newBalance);
-
-          if (initialBalance - newBalanceNum >= numAmount * 0.99) {
-            setNotification({
-              type: "success",
-              text: `✅ Transaction completed! Sent ${amount} XLM to ${recipient.slice(
-                0,
-                8
-              )}...${recipient.slice(-8)}`,
-            });
-
-            // Clear form and refresh data
-            setRecipient("");
-            setAmount("");
-            setShowSendForm(false);
-            await fetchData(publicKey);
-          } else {
-            setNotification({
-              type: "error",
-              text: "⚠️ Transaction status unclear. Please check your balance and transaction history.",
-            });
-          }
-        } catch (balanceError) {
-          console.error(
-            "Error checking balance after transaction:",
-            balanceError
-          );
-          setNotification({
-            type: "error",
-            text: "⚠️ Transaction status unclear. Please check your balance and try again if needed.",
-          });
-        }
-      } else {
-        setNotification({
-          type: "error",
-          text: `❌ ${(err as Error).message}`,
-        });
-      }
+      setNotification({
+        type: "error",
+        text: `❌ ${(err as Error).message}`,
+      });
     } finally {
       setIsLoading(false);
     }

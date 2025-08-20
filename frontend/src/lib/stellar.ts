@@ -53,7 +53,7 @@ const rpcUrl =
 const networkPassphrase =
   process.env.NEXT_PUBLIC_STELLAR_NETWORK || Networks.TESTNET;
 
-const server = new rpc.Server(rpcUrl);
+export const server = new rpc.Server(rpcUrl);
 const horizonUrl = "https://horizon-testnet.stellar.org";
 const horizonServer = new Horizon.Server(horizonUrl);
 
@@ -109,7 +109,11 @@ export const formatBalance = (balance: string): string => {
  * @returns An object containing the public and secret keys for the newly
  * generated keypair.
  */
-export const createKeypair = (): { publicKey: string; secret: string; mnemonic: string } => {
+export const createKeypair = (): {
+  publicKey: string;
+  secret: string;
+  mnemonic: string;
+} => {
   const mnemonic = bip39.generateMnemonic(128); // 12 words
   const seed = bip39.mnemonicToSeedSync(mnemonic);
   const keypair = Keypair.fromRawEd25519Seed(seed.slice(0, 32));
@@ -129,102 +133,6 @@ export const createKeypair = (): { publicKey: string; secret: string; mnemonic: 
 export const getKeypairFromMnemonic = (mnemonic: string): Keypair => {
   const seed = bip39.mnemonicToSeedSync(mnemonic);
   return Keypair.fromRawEd25519Seed(seed.slice(0, 32));
-};
-
-/**
- * Gets the balance of a user from the Soroban smart contract.
- * Returns the balance as a formatted decimal string (e.g., "0.00", "1.50")
- */
-export const getBalance = async (userAddress: string): Promise<string> => {
-  try {
-    if (!contractId) {
-      throw new Error(
-        "Contract ID is not configured. Please set NEXT_PUBLIC_PAYMENTS_CONTRACT_ID environment variable."
-      );
-    }
-
-    console.log("Getting balance for:", userAddress);
-    console.log("Contract ID:", contractId);
-
-    const userAddressObj = Address.fromString(userAddress);
-    const contractAddress = Address.fromString(contractId);
-
-    const operation = Operation.invokeHostFunction({
-      func: xdr.HostFunction.hostFunctionTypeInvokeContract(
-        new xdr.InvokeContractArgs({
-          contractAddress: contractAddress.toScAddress(),
-          functionName: "balance",
-          args: [userAddressObj.toScVal()],
-        })
-      ),
-      auth: [],
-    });
-
-    // Create a transaction builder with a dummy source account
-    const dummyKeypair = Keypair.random();
-    const dummyAccount = new Account(dummyKeypair.publicKey(), "0");
-
-    const transaction = new TransactionBuilder(dummyAccount, {
-      fee: BASE_FEE,
-      networkPassphrase,
-    })
-      .addOperation(operation)
-      .setTimeout(TimeoutInfinite)
-      .build();
-
-    // Simulate the transaction to get the result
-    console.log("Simulating balance query...");
-    const simulationResponse = await server.simulateTransaction(transaction);
-
-    if (rpc.Api.isSimulationError(simulationResponse)) {
-      const errorMessage = simulationResponse.error;
-      console.log("Simulation error details:", errorMessage);
-
-      if (
-        errorMessage.includes("UnreachableCodeReached") ||
-        errorMessage.includes("InvalidAction") ||
-        errorMessage.includes("balance") ||
-        errorMessage.includes("not initialized")
-      ) {
-        console.log(
-          "User not found or contract not initialized, returning 0.00"
-        );
-        return "0.00";
-      }
-
-      console.error("Unexpected simulation error:", errorMessage);
-      throw new Error(`Balance query failed: ${errorMessage}`);
-    }
-
-    if (!simulationResponse.result) {
-      console.log("No result returned, returning 0.00");
-      return "0.00";
-    }
-
-    const resultXdr = simulationResponse.result.retval;
-    const result = scValToNative(resultXdr);
-
-    console.log("Balance query successful, raw result (stroops):", result);
-
-    const stroopsBalance = BigInt(result.toString());
-    const decimalBalance = stroopsToDecimal(stroopsBalance);
-    const formattedBalance = formatBalance(decimalBalance);
-
-    console.log("Formatted balance:", formattedBalance);
-    return formattedBalance;
-  } catch (error) {
-    console.error("Error getting balance:", error);
-
-    if (
-      error instanceof Error &&
-      !error.message.includes("Balance query failed")
-    ) {
-      console.log("Unexpected error, returning 0.00 as fallback");
-      return "0.00";
-    }
-
-    throw error;
-  }
 };
 
 /**
@@ -333,6 +241,89 @@ async function submitSorobanTransaction(
     throw error;
   }
 }
+
+/**
+ * Submits a pre-signed Stellar transaction XDR to the network.
+ *
+ * @param {string} signedTransactionXDR - The base64 encoded signed transaction XDR.
+ *
+ * @returns {Promise<void>}
+ *
+ * @throws {Error} If transaction submission fails.
+ */
+export const submitSignedTransaction = async (
+  signedTransactionXDR: string
+): Promise<void> => {
+  try {
+    const transaction = TransactionBuilder.fromXDR(
+      signedTransactionXDR,
+      networkPassphrase
+    );
+
+    const transactionResponse = await server.sendTransaction(transaction);
+
+    if (transactionResponse.status === "ERROR") {
+      console.error("sendTransaction ERROR:", transactionResponse);
+      throw new Error("Transaction submission failed.");
+    }
+
+    let attempts = 0;
+    const maxAttempts = 30;
+    let getResponse: any;
+
+    while (attempts < maxAttempts) {
+      try {
+        getResponse = await server.getTransaction(transactionResponse.hash);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("Bad union switch") || msg.includes("XDR")) {
+          console.warn(
+            "Non-fatal status decode error (likely SDK/XDR mismatch). Assume submission ok; verify externally if needed."
+          );
+          return;
+        }
+        throw e;
+      }
+
+      if (getResponse.status === rpc.Api.GetTransactionStatus.SUCCESS) {
+        console.log("Transaction successful:", transactionResponse.hash);
+        return;
+      }
+
+      if (getResponse.status === rpc.Api.GetTransactionStatus.FAILED) {
+        console.error("Transaction FAILED (no XDR decode):", getResponse);
+        throw new Error(
+          "Transaction failed. This could be due to insufficient balance, invalid arguments, or network issues."
+        );
+      }
+
+      if (getResponse.status === rpc.Api.GetTransactionStatus.NOT_FOUND) {
+        attempts += 1;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        continue;
+      }
+
+      console.log("Transaction status:", getResponse.status);
+      return;
+    }
+
+    throw new Error(
+      "Transaction confirmation timeout. Please check the transaction status manually."
+    );
+  } catch (error) {
+    console.error("Error submitting signed transaction:", error);
+    if (
+      error instanceof Error &&
+      (error.message.includes("Bad union switch") ||
+        error.message.includes("XDR"))
+    ) {
+      throw new Error(
+        "Transaction submitted, but status decoding encountered an error. Please verify the transaction status separately."
+      );
+    }
+    throw error;
+  }
+};
 
 /**
  * Transfers tokens from one user to another via the smart contract.
@@ -621,13 +612,6 @@ export const transferNative = async (
       } else if (error.message.includes("Insufficient balance")) {
         throw new Error(
           "Insufficient balance to complete the transfer including fees."
-        );
-      } else if (
-        error.message.includes("Bad union switch") ||
-        error.message.includes("XDR")
-      ) {
-        throw new Error(
-          "Transaction processing completed, but status confirmation had an error. Please check your balance to confirm if the transaction succeeded."
         );
       }
     }
