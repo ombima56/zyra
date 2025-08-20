@@ -1,5 +1,6 @@
+"use client"
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import WaitlistForm from '@/components/waitlist-form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -10,21 +11,38 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Separator } from '@/components/ui/separator';
+import { Carousel, CarouselContent, CarouselItem, type CarouselApi } from "@/components/ui/carousel";
 import { CheckCircle2, DollarSign, MessageCircle, ShieldCheck, Users } from 'lucide-react';
 
 const LandingPage = () => {
+  const [api, setApi] = useState<CarouselApi>();
+
+  useEffect(() => {
+    if (!api) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      api.scrollNext();
+    }, 2500); // Change slide every 2.5 seconds
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [api]);
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-12">
       {/* Hero Section */}
       <section className="relative w-full max-w-4xl text-center mt-20">
         <div className="relative">
-          <h1 className="text-5xl font-bold text-foreground">
+          <h1 className="text-3xl md:text-5xl font-bold text-foreground">
             Send Money as Easily as a Text.
           </h1>
-          <p className="mt-4 text-xl text-muted-foreground">
+          <p className="mt-4 text-lg md:text-xl text-muted-foreground">
             Zyra lets you connect, chat, and transact seamlessly on WhatsApp.
           </p>
-          <p className="mt-4 text-xl text-muted-foreground">
+          <p className="mt-4 text-lg md:text-xl text-muted-foreground">
             No complex wallets, no high fees. Just simple, social, and secure
             payments for everyone in Africa.
           </p>
@@ -36,10 +54,10 @@ const LandingPage = () => {
 
       {/* WhatsApp Example Section */}
       <section className="relative w-full max-w-5xl pt-12">
-        <h2 className="text-3xl font-bold text-center text-foreground mb-8">
+        <h2 className="text-2xl md:text-3xl font-bold text-center text-foreground mb-8">
           How it Works
         </h2>
-        <div className="flex justify-center items-end gap-8">
+        <div className="hidden md:flex justify-center items-end gap-8">
           <Card className="w-64 h-[480px] rounded-[2.5rem] shadow-[0_-5px_10px_rgba(var(--accent-rgb),0.5)]">
             <CardHeader>
               <CardTitle className="text-center">Alice</CardTitle>
@@ -98,13 +116,84 @@ const LandingPage = () => {
             </CardContent>
           </Card>
         </div>
+
+        {/* Carousel for mobile and smaller tablets */}
+        <div className="md:hidden flex justify-center">
+          <Carousel className="w-full max-w-xs" setApi={setApi} opts={{ loop: true }}>
+            <CarouselContent>
+              <CarouselItem>
+                <Card className="w-full h-[480px] rounded-[2.5rem] shadow-[0_-5px_10px_rgba(var(--accent-rgb),0.5)]">
+                  <CardHeader>
+                    <CardTitle className="text-center">Alice</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 space-y-4">
+                    <Alert className="bg-secondary">
+                      <AlertTitle>Alice</AlertTitle>
+                      <AlertDescription>
+                        Hey, I need to send you 500 KES.
+                      </AlertDescription>
+                    </Alert>
+                    <Alert className="bg-accent text-primary-foreground">
+                      <AlertTitle>You</AlertTitle>
+                      <AlertDescription className='dark:text-secondary'>
+                        No problem, just use Zyra. Send 500 KES to @alice.
+                      </AlertDescription>
+                    </Alert>
+                  </CardContent>
+                </Card>
+              </CarouselItem>
+              <CarouselItem>
+                <Card className="w-full h-[560px] rounded-[2.5rem] shadow-[0_-5px_10px_rgba(var(--accent-rgb),0.5)]">
+                  <CardHeader>
+                    <CardTitle className="text-center">Zyra</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 space-y-4">
+                    <Alert className="bg-accent text-primary-foreground">
+                      <AlertTitle>You</AlertTitle>
+                      <AlertDescription className="dark:text-secondary">
+                        Okay, sending now...
+                      </AlertDescription>
+                    </Alert>
+                    <Alert className="bg-secondary">
+                      <AlertTitle>Zyra</AlertTitle>
+                      <AlertDescription>
+                        You sent 500 KES to Alice.
+                      </AlertDescription>
+                    </Alert>
+                    <Alert className="bg-secondary">
+                      <AlertTitle>Alice</AlertTitle>
+                      <AlertDescription>
+                        Wow, that was fast! Received.
+                      </AlertDescription>
+                    </Alert>
+                  </CardContent>
+                </Card>
+              </CarouselItem>
+              <CarouselItem>
+                <Card className="w-full h-[480px] rounded-[2.5rem] shadow-[0_-5px_10px_rgba(var(--accent-rgb),0.5)]">
+                  <CardHeader>
+                    <CardTitle className="text-center">Bob</CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-4 space-y-4">
+                    <Alert className="bg-accent text-primary-foreground">
+                      <AlertTitle>You</AlertTitle>
+                      <AlertDescription className='dark:text-secondary'>
+                        Perfect! Zyra is amazing.
+                      </AlertDescription>
+                    </Alert>
+                  </CardContent>
+                </Card>
+              </CarouselItem>
+            </CarouselContent>
+          </Carousel>
+        </div>
       </section>
 
       <Separator className="my-12" />
 
       {/* Features Section */}
       <section id="features" className="w-full max-w-5xl py-12 text-center">
-        <h2 className="text-3xl font-bold text-center text-foreground mb-8 font-mochiy-pop-one">
+        <h2 className="text-2xl md:text-3xl font-bold text-center text-foreground mb-8 font-mochiy-pop-one">
           Seamless Finance, Right in Your Chat.
         </h2>
         <p className="text-lg text-muted-foreground mb-12">
@@ -116,6 +205,13 @@ const LandingPage = () => {
             <CardTitle className="text-xl font-semibold text-foreground mb-2">Chat-Based Transactions</CardTitle>
             <CardContent className="p-0 text-muted-foreground">
               Send/receive money effortlessly via simple WhatsApp chat commands.
+            </CardContent>
+          </Card>
+          <Card className="p-6 text-left">
+            <ShieldCheck className="h-8 w-8 text-accent mb-4" />
+            <CardTitle className="text-xl font-semibold text-foreground mb-2">Secure Wallet Connection</CardTitle>
+            <CardContent className="p-0 text-muted-foreground">
+              Integrates with Lobstr Wallet, ensuring users maintain full custody of their assets.
             </CardContent>
           </Card>
           <Card className="p-6 text-left">
@@ -132,13 +228,6 @@ const LandingPage = () => {
               Perfect for remittances, gig payments, and informal commerce across African borders.
             </CardContent>
           </Card>
-          <Card className="p-6 text-left">
-            <CheckCircle2 className="h-8 w-8 text-accent mb-4" />
-            <CardTitle className="text-xl font-semibold text-foreground mb-2">Admin Dashboard</CardTitle>
-            <CardContent className="p-0 text-muted-foreground">
-              Web UI (Next.js + Tailwind) for monitoring and managing financial flows.
-            </CardContent>
-          </Card>
         </div>
       </section>
 
@@ -146,7 +235,7 @@ const LandingPage = () => {
 
       {/* About Section */}
       <section id="about" className="w-full max-w-4xl py-12">
-        <h2 className="text-3xl font-bold text-center text-foreground mb-8 font-mochiy-pop-one">
+        <h2 className="text-2xl md:text-3xl font-bold text-center text-foreground mb-8 font-mochiy-pop-one">
           Connecting Africa Through Seamless Finance.
         </h2>
         <p className="text-lg text-muted-foreground mb-8 text-center">
@@ -156,7 +245,7 @@ const LandingPage = () => {
           We empower individuals and businesses to send money as easily as sending a message, fostering frictionless, borderless, and decentralized financial interactions.
         </p>
 
-        <h3 className="text-3xl font-bold text-foreground mb-6 text-center">Meet the Founders</h3>
+        <h3 className="text-2xl md:text-3xl font-bold text-foreground mb-6 text-center">Meet the Founders</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
           <Card className="p-6 text-center">
             <CardTitle className="text-xl font-semibold text-foreground mb-2">Hilary Okello</CardTitle>
@@ -183,7 +272,7 @@ const LandingPage = () => {
 
       {/* Q&A Section */}
       <section id="faq" className="w-full max-w-5xl py-12">
-        <h2 className="text-3xl font-semibold text-center text-foreground mb-8 font-mochiy-pop-one">
+        <h2 className="text-2xl md:text-3xl font-semibold text-center text-foreground mb-8 font-mochiy-pop-one">
           Your Questions, Answered.
         </h2>
         <Accordion type="single" collapsible className="w-full">
