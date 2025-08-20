@@ -12,22 +12,7 @@ import {
   getTransactionHistory,
   StellarTransaction,
 } from "@/lib/stellar";
-
-type Wallet = {
-  id: number;
-  publicKey: string;
-  secret: string;
-};
-
-export type TransactionRecord = {
-  id: number;
-  amount: number;
-  phone: string;
-  status: string;
-  type: string;
-  createdAt: string;
-  mpesaReceiptNumber?: string;
-};
+import { Card } from "@/components/ui/card";
 
 export default function DashboardPage() {
   const [publicKey, setPublicKey] = useState<string | null>(null);
@@ -341,52 +326,38 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100">
-      {/* Header */}
+    <main className="flex min-h-screen flex-col items-center p-12 pt-28">
       <Header
         username={getUsername()}
         onLogout={handleLogout}
         publicKey={publicKey || ""}
       />
-
-      {/* Main Content */}
-      <main className="pb-8 sm:pb-12">
-        {/* Balance Section */}
+      <div className="w-full max-w-4xl">
         <Balance
           balance={balance}
           isLoading={isLoading}
           onRefresh={() => publicKey && fetchData(publicKey)}
         />
-
-        {/* Quick Actions */}
         <Actions
           onDepositClick={toggleDepositForm}
           onSendClick={toggleSendForm}
         />
-
-        {/* Global Notification */}
         {!whatsappVerified && (
-          <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
-            <div className="p-4 rounded-xl text-center bg-yellow-500/10 border border-yellow-500/20 text-yellow-400">
-              Please verify your WhatsApp account to enable all features.
-            </div>
-          </div>
+          <Card className="mb-6 p-4 text-center text-yellow-400 bg-yellow-500/10 border border-yellow-500/20">
+            Please verify your WhatsApp account to enable all features.
+          </Card>
         )}
         {notification && (
-          <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
-            <div
-              className={`p-4 rounded-xl text-center ${
-                notification.type === "success"
-                  ? "bg-green-500/10 border border-green-500/20 text-green-400"
-                  : "bg-red-500/10 border border-red-500/20 text-red-400"
-              }`}
-            >
-              {notification.text}
-            </div>
-          </div>
+          <Card
+            className={`mb-6 p-4 text-center ${
+              notification.type === "success"
+                ? "text-green-400 bg-green-500/10 border border-green-500/20"
+                : "text-red-400 bg-red-500/10 border border-red-500/20"
+            }`}
+          >
+            {notification.text}
+          </Card>
         )}
-
-        {/* Forms */}
         {showDepositForm && (
           <DepositForm
             amount={amount}
@@ -397,7 +368,6 @@ export default function DashboardPage() {
             onDeposit={handleDeposit}
           />
         )}
-
         {showSendForm && (
           <SendMoneyForm
             recipient={recipient}
@@ -409,15 +379,13 @@ export default function DashboardPage() {
             currentBalance={balance || "0"}
           />
         )}
-
-        {/* Stellar Transactions */}
         <TransactionList
           transactions={stellarTransactions}
           isLoading={isLoading}
           onRefresh={() => publicKey && fetchData(publicKey)}
           userAddress={publicKey || undefined}
         />
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }
