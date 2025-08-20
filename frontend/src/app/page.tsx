@@ -9,10 +9,10 @@ const LandingPage = () => {
       {/* Hero Section */}
       <section className="relative w-full max-w-5xl text-center mt-20">
         <div className="relative">
-          <h1 className="text-5xl font-bold text-forest-900">
+          <h1 className="text-5xl font-bold text-foreground font-mochiy-pop-one">
             Send Money as Easily as a Text.
           </h1>
-          <p className="mt-4 text-lg text-forest-700">
+          <p className="mt-4 text-lg text-muted-foreground">
             Zyra lets you connect, chat, and transact seamlessly on WhatsApp. No
             complex wallets, no high fees. Just simple, social, and secure
             payments for everyone in Africa.
@@ -25,11 +25,11 @@ const LandingPage = () => {
 
       {/* WhatsApp Example Section */}
       <section className="relative w-full max-w-5xl pt-12">
-        <h2 className="text-3xl font-semibold text-center text-forest-900 mb-8">
+        <h2 className="text-3xl font-semibold text-center text-foreground mb-8">
           How it Works
         </h2>
         <div className="flex justify-center items-end gap-8">
-          <Card className="w-64 h-[480px] rounded-[2.5rem]">
+          <Card className="w-64 h-[480px] rounded-[2.5rem] shadow-[0_-5px_10px_rgba(var(--accent-rgb),0.5)]">
             <CardHeader>
               <CardTitle className="text-center">Alice</CardTitle>
             </CardHeader>
@@ -40,22 +40,22 @@ const LandingPage = () => {
                   Hey, I need to send you 500 KES.
                 </AlertDescription>
               </Alert>
-              <Alert className="bg-primary text-primary-foreground">
+              <Alert className="bg-accent text-primary-foreground">
                 <AlertTitle>You</AlertTitle>
-                <AlertDescription>
+                <AlertDescription className='dark:text-secondary'>
                   No problem, just use Zyra. Send 500 KES to @alice.
                 </AlertDescription>
               </Alert>
             </CardContent>
           </Card>
-          <Card className="w-72 h-[560px] rounded-[2.5rem]">
+          <Card className="w-72 h-[560px] rounded-[2.5rem] shadow-[0_-5px_10px_rgba(var(--accent-rgb),0.5)]">
             <CardHeader>
               <CardTitle className="text-center">Zyra</CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-4">
-              <Alert className="bg-primary text-primary-foreground">
+              <Alert className="bg-accent text-primary-foreground">
                 <AlertTitle>You</AlertTitle>
-                <AlertDescription>
+                <AlertDescription className="dark:text-secondary">
                   Okay, sending now...
                 </AlertDescription>
               </Alert>
@@ -73,21 +73,20 @@ const LandingPage = () => {
               </Alert>
             </CardContent>
           </Card>
-          <Card className="w-64 h-[480px] rounded-[2.5rem]">
+          <Card className="w-64 h-[480px] rounded-[2.5rem] shadow-[0_-5px_10px_rgba(var(--accent-rgb),0.5)]">
             <CardHeader>
               <CardTitle className="text-center">Bob</CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-4">
-              <Alert className="bg-primary text-primary-foreground">
+              <Alert className="bg-accent text-primary-foreground">
                 <AlertTitle>You</AlertTitle>
-                <AlertDescription>
+                <AlertDescription className='dark:text-secondary'>
                   Perfect! Zyra is amazing.
                 </AlertDescription>
               </Alert>
             </CardContent>
           </Card>
         </div>
-        <div className="absolute bottom-0 left-0 w-full h-32 bg-gradient-to-t from-background to-transparent"></div>
       </section>
     </main>
   );
