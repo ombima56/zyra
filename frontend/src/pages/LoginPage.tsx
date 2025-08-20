@@ -6,10 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
+import { getKeypairFromMnemonic } from "@/lib/stellar";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [mnemonic, setMnemonic] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [formMessage, setFormMessage] = useState<{
     type: "success" | "error";
@@ -34,15 +36,22 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
+      const keypair = getKeypairFromMnemonic(mnemonic);
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email,
+          password,
+          publicKey: keypair.publicKey(),
+        }),
       });
 
       if (!res.ok) {
         if (res.status === 401) {
-          throw new Error("Incorrect email or password. Please try again.");
+          throw new Error(
+            "Incorrect email, password, or seed phrase. Please try again."
+          );
         } else {
           throw new Error("Login failed. An unexpected server error occurred.");
         }
@@ -91,6 +100,13 @@ export default function LoginPage() {
               placeholder="Password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+            <Input
+              type="text"
+              placeholder="Your 12-word seed phrase"
+              value={mnemonic}
+              onChange={(e) => setMnemonic(e.target.value)}
               required
             />
             <Button type="submit" disabled={isLoading} className="w-full">
