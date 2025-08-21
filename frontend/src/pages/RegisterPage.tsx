@@ -19,7 +19,12 @@ export default function RegisterPage() {
   const [mnemonic, setMnemonic] = useState("");
   const [showSeedPhrase, setShowSeedPhrase] = useState(false);
   const [verified, setVerified] = useState(false);
-  const [userMnemonic, setUserMnemonic] = useState("");
+
+  // New states for structured verification
+  const [mnemonicWords, setMnemonicWords] = useState<string[]>([]);
+  const [verificationInputs, setVerificationInputs] = useState<
+    { value: string; disabled: boolean }[]
+  >([]);
 
   const router = useRouter();
 
@@ -27,12 +32,40 @@ export default function RegisterPage() {
     e.preventDefault();
     const { mnemonic: newMnemonic } = createKeypair();
     setMnemonic(newMnemonic);
+    setMnemonicWords(newMnemonic.split(" "));
+
+    // Prepare verification inputs: pre-fill 6 random words
+    const words = newMnemonic.split(" ");
+    const indicesToFill = new Set<number>();
+    while (indicesToFill.size < 6) {
+      indicesToFill.add(Math.floor(Math.random() * 12));
+    }
+
+    const initialInputs = words.map((word, index) => ({
+      value: indicesToFill.has(index) ? word : "",
+      disabled: indicesToFill.has(index),
+    }));
+    setVerificationInputs(initialInputs);
+
     setShowSeedPhrase(true);
+  };
+
+  const handleVerificationInputChange = (
+    index: number,
+    value: string
+  ) => {
+    const newInputs = [...verificationInputs];
+    newInputs[index].value = value;
+    setVerificationInputs(newInputs);
   };
 
   const handleVerificationSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (userMnemonic.trim() !== mnemonic.trim()) {
+    const enteredMnemonic = verificationInputs
+      .map((input) => input.value)
+      .join(" ");
+
+    if (enteredMnemonic.trim() !== mnemonic.trim()) {
       setMessage("Seed phrase does not match. Please try again.");
       return;
     }
@@ -114,27 +147,51 @@ export default function RegisterPage() {
             </form>
           ) : !verified ? (
             <div>
-              <p className="text-lg text-center text-muted-foreground">
-                Please save this seed phrase in a secure location. You will need
-                it to recover your account.
+              <p className="text-lg text-center text-muted-foreground mb-4">
+                Please write down your 12-word seed phrase in the correct order.
+                This is the only way to recover your account.
               </p>
-              <div className="my-4 p-4 border rounded-lg bg-muted">
-                <p className="text-lg font-mono text-center">{mnemonic}</p>
+              <div className="grid grid-cols-2 gap-3 my-4 p-4 border rounded-lg bg-muted">
+                {mnemonicWords.map((word, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-sm w-6 text-right">
+                      {index + 1}.
+                    </span>
+                    <span className="text-lg font-mono font-semibold text-foreground">
+                      {word}
+                    </span>
+                  </div>
+                ))}
               </div>
+              <p className="text-lg text-center text-muted-foreground mb-4">
+                To verify, please fill in the missing words below:
+              </p>
               <form
                 onSubmit={handleVerificationSubmit}
-                className="space-y-4 mt-4"
+                className="grid grid-cols-2 gap-3 mt-4"
               >
-                <Input
-                  type="text"
-                  placeholder="Enter your seed phrase to verify"
-                  value={userMnemonic}
-                  onChange={(e) => setUserMnemonic(e.target.value)}
-                  required
-                />
-                <Button type="submit" className="w-full">
-                  Verify & Register
-                </Button>
+                {verificationInputs.map((input, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <span className="text-muted-foreground text-sm w-6 text-right">
+                      {index + 1}.
+                    </span>
+                    <Input
+                      type="text"
+                      value={input.value}
+                      onChange={(e) =>
+                        handleVerificationInputChange(index, e.target.value)
+                      }
+                      disabled={input.disabled}
+                      className="font-mono"
+                      required
+                    />
+                  </div>
+                ))}
+                <div className="col-span-2 mt-4">
+                  <Button type="submit" className="w-full">
+                    Verify & Register
+                  </Button>
+                </div>
               </form>
             </div>
           ) : (
