@@ -9,7 +9,7 @@ import { Mail, MessageCircle, Phone, MapPin, Send } from "lucide-react";
 export default function ContactPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-12">
-      <section className="relative w-full max-w-4xl text-center mt-20">
+      <section className="relative w-full max-w-4xl text-center mt-15">
         <h1 className="text-3xl md:text-5xl font-bold text-foreground">
           Let's Connect
         </h1>
