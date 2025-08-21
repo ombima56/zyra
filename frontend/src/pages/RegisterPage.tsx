@@ -1,28 +1,28 @@
-"use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import Link from "next/link";
-import { createKeypair, getKeypairFromMnemonic } from "@/lib/stellar";
-import { Copy } from "lucide-react";
+'use client';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import Link from 'next/link';
+import { createKeypair, getKeypairFromMnemonic } from '@/lib/stellar';
+import { Copy } from 'lucide-react';
+import CryptoJS from 'crypto-js';
 
 export default function RegisterPage() {
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showVerification, setShowVerification] = useState(false);
-  const [verificationCode, setVerificationCode] = useState("");
-  const [mnemonic, setMnemonic] = useState("");
+  const [verificationCode, setVerificationCode] = useState('');
+  const [mnemonic, setMnemonic] = useState('');
   const [showSeedPhrase, setShowSeedPhrase] = useState(false);
   const [verified, setVerified] = useState(false);
-  const [hasCopiedMnemonic, setHasCopiedMnemonic] = useState(false); // New state
+  const [hasCopiedMnemonic, setHasCopiedMnemonic] = useState(false);
 
-  // New states for structured verification
   const [mnemonicWords, setMnemonicWords] = useState<string[]>([]);
   const [verificationInputs, setVerificationInputs] = useState<
     { value: string; disabled: boolean }[]
@@ -34,17 +34,16 @@ export default function RegisterPage() {
     e.preventDefault();
     const { mnemonic: newMnemonic } = createKeypair();
     setMnemonic(newMnemonic);
-    setMnemonicWords(newMnemonic.split(" "));
+    setMnemonicWords(newMnemonic.split(' '));
 
-    // Prepare verification inputs: pre-fill 6 random words
-    const words = newMnemonic.split(" ");
+    const words = newMnemonic.split(' ');
     const indicesToFill = new Set<number>();
     while (indicesToFill.size < 6) {
       indicesToFill.add(Math.floor(Math.random() * 12));
     }
 
     const initialInputs = words.map((word, index) => ({
-      value: indicesToFill.has(index) ? word : "",
+      value: indicesToFill.has(index) ? word : '',
       disabled: indicesToFill.has(index),
     }));
     setVerificationInputs(initialInputs);
@@ -62,40 +61,47 @@ export default function RegisterPage() {
     e.preventDefault();
     const enteredMnemonic = verificationInputs
       .map((input) => input.value)
-      .join(" ");
+      .join(' ');
 
     if (enteredMnemonic.trim() !== mnemonic.trim()) {
-      setMessage("Seed phrase does not match. Please try again.");
+      setMessage('Seed phrase does not match. Please try again.');
       return;
     }
     setVerified(true);
-    setMessage("");
+    setMessage('');
 
     setIsLoading(true);
     try {
       const keypair = getKeypairFromMnemonic(mnemonic);
-      const res = await fetch("/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+      const secretKey = keypair.secret();
+      const encryptedSecretKey = CryptoJS.AES.encrypt(
+        secretKey,
+        password
+      ).toString();
+
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email,
           phone,
           password,
           publicKey: keypair.publicKey(),
+          encryptedSecretKey,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message || "Registration failed");
+        throw new Error(data.message || 'Registration failed');
       }
 
       setVerificationCode(data.whatsappVerificationCode);
       setShowVerification(true);
-      setMessage("✅ Registration successful! Please verify your WhatsApp.");
+      setMessage('✅ Registration successful! Please verify your WhatsApp.');
     } catch (error: any) {
-      console.error("Registration error:", error);
+      console.error('Registration error:', error);
       setMessage(` ${error.message}`);
     } finally {
       setIsLoading(false);
@@ -105,13 +111,12 @@ export default function RegisterPage() {
   const handleCopyAndProceed = async () => {
     try {
       await navigator.clipboard.writeText(mnemonic);
-      setMessage("Mnemonic copied to clipboard!");
+      setMessage('Mnemonic copied to clipboard!');
       setHasCopiedMnemonic(true);
-      // Clear message after a short delay
-      setTimeout(() => setMessage(""), 3000);
+      setTimeout(() => setMessage(''), 3000);
     } catch (err) {
-      console.error("Failed to copy mnemonic:", err);
-      setMessage("Failed to copy mnemonic. Please copy manually.");
+      console.error('Failed to copy mnemonic:', err);
+      setMessage('Failed to copy mnemonic. Please copy manually.');
     }
   };
 
@@ -120,12 +125,12 @@ export default function RegisterPage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-3xl font-bold text-center">
-            {showSeedPhrase ? "Save Your Seed Phrase" : "Register for Zrya"}
+            {showSeedPhrase ? 'Save Your Seed Phrase' : 'Register for Zrya'}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {message && (
-            <Alert variant={message.includes("✅") ? "default" : "destructive"}>
+            <Alert variant={message.includes('✅') ? 'default' : 'destructive'}>
               <AlertDescription>{message}</AlertDescription>
             </Alert>
           )}
@@ -154,7 +159,7 @@ export default function RegisterPage() {
                 required
               />
               <Button type="submit" disabled={isLoading} className="w-full">
-                {isLoading ? "Generating Keys..." : "Register"}
+                {isLoading ? 'Generating Keys...' : 'Register'}
               </Button>
             </form>
           ) : !verified ? (
@@ -228,7 +233,7 @@ export default function RegisterPage() {
               <p className="text-2xl font-bold my-2">+1 555 141 3984</p>
               <p className="text-4xl font-bold my-4">{verificationCode}</p>
               <p className="text-muted-foreground">
-                Once you have verified your account, you can{" "}
+                Once you have verified your account, you can{' '}
                 <Link href="/login" className="text-accent hover:underline">
                   log in
                 </Link>
@@ -239,7 +244,7 @@ export default function RegisterPage() {
 
           {!showSeedPhrase && (
             <p className="mt-6 text-center text-sm text-muted-foreground">
-              Already have an account?{" "}
+              Already have an account?{' '}
               <Link href="/login" className="text-accent hover:underline">
                 Login here
               </Link>

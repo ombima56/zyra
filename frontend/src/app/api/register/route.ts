@@ -4,9 +4,9 @@ import bcrypt from "bcrypt";
 import { formatPhoneNumber } from "@/lib/whatsapp";
 
 export async function POST(req: NextRequest) {
-  const { email, phone, password, publicKey } = await req.json();
+  const { email, phone, password, publicKey, encryptedSecretKey } = await req.json();
 
-  if (!email || !phone || !password || !publicKey) {
+  if (!email || !phone || !password || !publicKey || !encryptedSecretKey) {
     return NextResponse.json(
       { message: "Missing required fields" },
       { status: 400 }
@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
         phone: formattedPhone,
         password: hashedPassword,
         publicKey,
+        encryptedSecretKey,
         whatsappVerificationCode: verificationCode,
       },
     });

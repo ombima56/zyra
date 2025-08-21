@@ -25,20 +25,14 @@ import {
 } from "@stellar/stellar-sdk";
 import CryptoJS from "crypto-js";
 
-// Function to get the session encryption key from sessionStorage
-const getSessionEncryptionKey = (): string | null => {
-  return sessionStorage.getItem("sessionEncryptionKey");
-};
-
-const decryptSecretKey = (encryptedSecret: string, key: string): string => {
-  const bytes = CryptoJS.AES.decrypt(encryptedSecret, key);
-  return bytes.toString(CryptoJS.enc.Utf8);
-};
+import { useAuth } from "../contexts/AuthContext";
 
 export default function DashboardPage() {
+  const { secretKey, loading } = useAuth();
   const [publicKey, setPublicKey] = useState<string | null>(null);
   const [balance, setBalance] = useState<string | null>(null);
   const [whatsappVerified, setWhatsappVerified] = useState(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // ADDED: New state for loading
 
   const [stellarTransactions, setStellarTransactions] = useState<
     StellarTransaction[]
@@ -54,7 +48,9 @@ export default function DashboardPage() {
   } | null>(null);
   const [showSendForm, setShowSendForm] = useState(false);
   const [showDepositForm, setShowDepositForm] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
   useEffect(() => {
     if (notification) {
@@ -98,7 +94,7 @@ export default function DashboardPage() {
   }, [publicKey]);
 
   const fetchData = async (pk: string) => {
-    setIsLoading(true);
+    setIsLoading(true); // ADDED: Set loading to true before fetching
     try {
       const balanceResult = await getNativeBalance(pk);
       setBalance(balanceResult);
@@ -130,7 +126,7 @@ export default function DashboardPage() {
       setBalance("0.00");
       setStellarTransactions([]);
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // ADDED: Set loading to false after fetching
     }
   };
 
@@ -143,25 +139,10 @@ export default function DashboardPage() {
       return;
     }
 
-    const encryptedSecret = sessionStorage.getItem("encryptedUserSecretKey");
-    const encryptionKey = getSessionEncryptionKey();
-
-    if (!encryptedSecret || !encryptionKey) {
+    if (!secretKey) {
       setNotification({
         type: "error",
         text: "Secret key not available. Please log in again.",
-      });
-      return;
-    }
-
-    let secretKey: string;
-    try {
-      secretKey = decryptSecretKey(encryptedSecret, encryptionKey);
-    } catch (e) {
-      console.error("Decryption failed:", e);
-      setNotification({
-        type: "error",
-        text: "Failed to decrypt secret key. Please log in again.",
       });
       return;
     }
@@ -205,7 +186,6 @@ export default function DashboardPage() {
     }
 
     setNotification(null);
-    setIsLoading(true);
 
     try {
       const keypair = Keypair.fromSecret(secretKey);
@@ -285,8 +265,6 @@ export default function DashboardPage() {
         type: "error",
         text: `⌫ ${(err as Error).message}`,
       });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -299,7 +277,6 @@ export default function DashboardPage() {
       return;
     }
     setNotification(null);
-    setIsLoading(true);
     try {
       const res = await fetch("/api/mpesa/stk-push", {
         method: "POST",
@@ -329,8 +306,6 @@ export default function DashboardPage() {
     } catch (err) {
       console.error("Deposit error:", err);
       setNotification({ type: "error", text: `❌ ${(err as Error).message}` });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -377,8 +352,8 @@ export default function DashboardPage() {
       <div className="w-full max-w-4xl">
         <Balance
           balance={balance}
-          isLoading={isLoading}
           onRefresh={() => publicKey && fetchData(publicKey)}
+          isLoading={isLoading}
         />
         <Actions
           onDepositClick={toggleDepositForm}
@@ -423,9 +398,9 @@ export default function DashboardPage() {
         )}
         <TransactionList
           transactions={stellarTransactions}
-          isLoading={isLoading}
           onRefresh={() => publicKey && fetchData(publicKey)}
           userAddress={publicKey || undefined}
+          isLoading={isLoading}
         />
       </div>
     </main>
