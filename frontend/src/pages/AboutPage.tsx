@@ -6,7 +6,7 @@ import { Globe, Heart, Shield, Target } from "lucide-react";
 export default function AboutPage() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-12">
-      <section className="relative w-full max-w-4xl text-center mt-20">
+      <section className="relative w-full max-w-4xl text-center mt-15">
         <h1 className="text-3xl md:text-5xl font-bold text-foreground">
           About Zyra
         </h1>
@@ -138,6 +138,46 @@ export default function AboutPage() {
             </p>
           </Card>
         </div>
+      </section>
+
+      <Separator className="my-12" />
+
+      <section className="w-full max-w-5xl py-12">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-3xl sm:text-4xl font-bold text-center">
+              Meet the Founders
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+              <Card className="p-6 text-center">
+                <CardTitle className="text-xl font-semibold text-foreground mb-2">
+                  Hilary Okello
+                </CardTitle>
+                <CardContent className="p-0 text-muted-foreground">
+                  [Brief description of role/expertise]
+                </CardContent>
+              </Card>
+              <Card className="p-6 text-center">
+                <CardTitle className="text-xl font-semibold text-foreground mb-2">
+                  Quinter Ochieng
+                </CardTitle>
+                <CardContent className="p-0 text-muted-foreground">
+                  [Brief description of role/expertise]
+                </CardContent>
+              </Card>
+              <Card className="p-6 text-center">
+                <CardTitle className="text-xl font-semibold text-foreground mb-2">
+                  Hillary Ombima
+                </CardTitle>
+                <CardContent className="p-0 text-muted-foreground">
+                  [Brief description of role/expertise]
+                </CardContent>
+              </Card>
+            </div>
+          </CardContent>
+        </Card>
       </section>
     </main>
   );
