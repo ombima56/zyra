@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import Link from "next/link";
 import { createKeypair, getKeypairFromMnemonic } from "@/lib/stellar";
+import { Copy } from "lucide-react";
 
 export default function RegisterPage() {
   const [email, setEmail] = useState("");
@@ -19,6 +20,7 @@ export default function RegisterPage() {
   const [mnemonic, setMnemonic] = useState("");
   const [showSeedPhrase, setShowSeedPhrase] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [hasCopiedMnemonic, setHasCopiedMnemonic] = useState(false); // New state
 
   // New states for structured verification
   const [mnemonicWords, setMnemonicWords] = useState<string[]>([]);
@@ -50,10 +52,7 @@ export default function RegisterPage() {
     setShowSeedPhrase(true);
   };
 
-  const handleVerificationInputChange = (
-    index: number,
-    value: string
-  ) => {
+  const handleVerificationInputChange = (index: number, value: string) => {
     const newInputs = [...verificationInputs];
     newInputs[index].value = value;
     setVerificationInputs(newInputs);
@@ -103,6 +102,19 @@ export default function RegisterPage() {
     }
   };
 
+  const handleCopyAndProceed = async () => {
+    try {
+      await navigator.clipboard.writeText(mnemonic);
+      setMessage("Mnemonic copied to clipboard!");
+      setHasCopiedMnemonic(true);
+      // Clear message after a short delay
+      setTimeout(() => setMessage(""), 3000);
+    } catch (err) {
+      console.error("Failed to copy mnemonic:", err);
+      setMessage("Failed to copy mnemonic. Please copy manually.");
+    }
+  };
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-12">
       <Card className="w-full max-w-md">
@@ -146,54 +158,67 @@ export default function RegisterPage() {
               </Button>
             </form>
           ) : !verified ? (
-            <div>
-              <p className="text-lg text-center text-muted-foreground mb-4">
-                Please write down your 12-word seed phrase in the correct order.
-                This is the only way to recover your account.
-              </p>
-              <div className="grid grid-cols-2 gap-3 my-4 p-4 border rounded-lg bg-muted">
-                {mnemonicWords.map((word, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-sm w-6 text-right">
-                      {index + 1}.
-                    </span>
-                    <span className="text-lg font-mono font-semibold text-foreground">
-                      {word}
-                    </span>
+            <>
+              {!hasCopiedMnemonic ? (
+                <div>
+                  <p className="text-lg text-center text-muted-foreground mb-4">
+                    Please write down your 12-word seed phrase in the correct
+                    order. This is the only way to recover your account.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 my-4 p-4 border rounded-lg bg-muted">
+                    {mnemonicWords.map((word, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <span className="text-muted-foreground text-sm w-6 text-right">
+                          {index + 1}.
+                        </span>
+                        <span className="text-lg font-mono font-semibold text-foreground">
+                          {word}
+                        </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <p className="text-lg text-center text-muted-foreground mb-4">
-                To verify, please fill in the missing words below:
-              </p>
-              <form
-                onSubmit={handleVerificationSubmit}
-                className="grid grid-cols-2 gap-3 mt-4"
-              >
-                {verificationInputs.map((input, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <span className="text-muted-foreground text-sm w-6 text-right">
-                      {index + 1}.
-                    </span>
-                    <Input
-                      type="text"
-                      value={input.value}
-                      onChange={(e) =>
-                        handleVerificationInputChange(index, e.target.value)
-                      }
-                      disabled={input.disabled}
-                      className="font-mono"
-                      required
-                    />
-                  </div>
-                ))}
-                <div className="col-span-2 mt-4">
-                  <Button type="submit" className="w-full">
-                    Verify & Register
+                  <Button
+                    onClick={handleCopyAndProceed}
+                    className="w-full mt-4"
+                  >
+                    <Copy className="mr-2 h-4 w-4" /> Copy and Proceed
                   </Button>
                 </div>
-              </form>
-            </div>
+              ) : (
+                <div>
+                  <p className="text-lg text-center text-muted-foreground mb-4">
+                    To verify, please fill in the missing words below:
+                  </p>
+                  <form
+                    onSubmit={handleVerificationSubmit}
+                    className="grid grid-cols-2 gap-3 mt-4"
+                  >
+                    {verificationInputs.map((input, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <span className="text-muted-foreground text-sm w-6 text-right">
+                          {index + 1}.
+                        </span>
+                        <Input
+                          type="text"
+                          value={input.value}
+                          onChange={(e) =>
+                            handleVerificationInputChange(index, e.target.value)
+                          }
+                          disabled={input.disabled}
+                          className="font-mono"
+                          required
+                        />
+                      </div>
+                    ))}
+                    <div className="col-span-2 mt-4">
+                      <Button type="submit" className="w-full">
+                        Verify & Register
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </>
           ) : (
             <div className="text-center mt-4">
               <p className="text-lg">
