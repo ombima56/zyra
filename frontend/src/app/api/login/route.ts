@@ -30,7 +30,10 @@ export async function POST(request: Request) {
     await createSession(user.id);
 
     // Decrypt the secret key
-    const secretKey = CryptoJS.AES.decrypt(user.encryptedSecretKey, password).toString(CryptoJS.enc.Utf8);
+    const secretKey = CryptoJS.AES.decrypt(
+      user.encryptedSecretKey!,
+      password
+    ).toString(CryptoJS.enc.Utf8);
 
     // Return public key and decrypted secret
     return NextResponse.json(
