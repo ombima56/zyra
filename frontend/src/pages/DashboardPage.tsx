@@ -8,32 +8,31 @@ import DepositForm from "@/components/dashboard/DepositForm";
 import TransactionList from "@/components/dashboard/TransactionList";
 import {
   getNativeBalance,
-  transferNative,
   getTransactionHistory,
   StellarTransaction,
+  getKeypairFromMnemonic,
+  server,
 } from "@/lib/stellar";
+import { Card } from "@/components/ui/card";
+import {
+  TransactionBuilder,
+  Networks,
+  BASE_FEE,
+  Operation,
+  Asset,
+  Account,
+  Keypair,
+} from "@stellar/stellar-sdk";
+import CryptoJS from "crypto-js";
 
-type Wallet = {
-  id: number;
-  publicKey: string;
-  secret: string;
-};
-
-export type TransactionRecord = {
-  id: number;
-  amount: number;
-  phone: string;
-  status: string;
-  type: string;
-  createdAt: string;
-  mpesaReceiptNumber?: string;
-};
+import { useAuth } from "../contexts/AuthContext";
 
 export default function DashboardPage() {
+  const { secretKey, loading } = useAuth();
   const [publicKey, setPublicKey] = useState<string | null>(null);
-  const [secretKey, setSecretKey] = useState<string | null>(null);
   const [balance, setBalance] = useState<string | null>(null);
   const [whatsappVerified, setWhatsappVerified] = useState(false);
+  const [isLoading, setIsLoading] = useState<boolean>(true); // ADDED: New state for loading
 
   const [stellarTransactions, setStellarTransactions] = useState<
     StellarTransaction[]
@@ -49,7 +48,9 @@ export default function DashboardPage() {
   } | null>(null);
   const [showSendForm, setShowSendForm] = useState(false);
   const [showDepositForm, setShowDepositForm] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
   useEffect(() => {
     if (notification) {
@@ -73,7 +74,6 @@ export default function DashboardPage() {
         }
         const userData = await res.json();
         setPublicKey(userData.publicKey);
-        setSecretKey(userData.secret);
         setBalance(userData.balance.toString());
         setWhatsappVerified(userData.whatsappVerified);
         console.log("Public Key from API:", userData.publicKey);
@@ -94,59 +94,55 @@ export default function DashboardPage() {
   }, [publicKey]);
 
   const fetchData = async (pk: string) => {
-    setIsLoading(true);
+    setIsLoading(true); // ADDED: Set loading to true before fetching
     try {
       const balanceResult = await getNativeBalance(pk);
       setBalance(balanceResult);
 
+      // Update balance in database
       await fetch("/api/user/balance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ publicKey: pk, balance: balanceResult }),
       });
 
-      try {
-        const stellarTxHistory = await getTransactionHistory(pk);
-        setStellarTransactions(stellarTxHistory);
-        console.log("Fetched Stellar transactions:", stellarTxHistory);
-      } catch (txError) {
-        console.error("Error fetching Stellar transactions:", txError);
-        setStellarTransactions([]);
-
-        if (
-          !(
-            txError instanceof Error &&
-            txError.message.includes("Account not found")
-          )
-        ) {
-          setNotification({
-            type: "error",
-            text: "Failed to load transaction history. Balance loaded successfully.",
-          });
-        }
-      }
+      const stellarTxHistory = await getTransactionHistory(pk);
+      setStellarTransactions(stellarTxHistory);
+      console.log("Fetched Stellar transactions:", stellarTxHistory);
 
       if (notification?.type === "error") {
         setNotification(null);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
+
+      // Only show error notification for actual network/API issues, not for new accounts
       setNotification({
         type: "error",
-        text: `❌ Failed to load account data. Please try again.`,
+        text: "Network error occurred. Please check your connection and try again.",
       });
+
+      // Set safe defaults
       setBalance("0.00");
       setStellarTransactions([]);
     } finally {
-      setIsLoading(false);
+      setIsLoading(false); // ADDED: Set loading to false after fetching
     }
   };
 
   const handleSendMoney = async () => {
-    if (!publicKey || !secretKey) {
+    if (!publicKey) {
       setNotification({
         type: "error",
         text: "Please log in to send money.",
+      });
+      return;
+    }
+
+    if (!secretKey) {
+      setNotification({
+        type: "error",
+        text: "Secret key not available. Please log in again.",
       });
       return;
     }
@@ -190,12 +186,66 @@ export default function DashboardPage() {
     }
 
     setNotification(null);
-    setIsLoading(true);
-
-    const initialBalance = currentBalance;
 
     try {
-      await transferNative(secretKey, recipient, amount);
+      const keypair = Keypair.fromSecret(secretKey);
+
+      let sourceAccount;
+      try {
+        const accountResponse = await server.getAccount(keypair.publicKey());
+        sourceAccount = new Account(
+          keypair.publicKey(),
+          accountResponse.sequenceNumber()
+        );
+      } catch (accountError) {
+        if (
+          accountError instanceof Error &&
+          (accountError.message.includes("Account not found") ||
+            accountError.message.includes("Not Found") ||
+            accountError.message.includes("not_found"))
+        ) {
+          setNotification({
+            type: "error",
+            text: "Your account is not yet activated on the network. You need to receive at least 1 XLM to activate it.",
+          });
+          return;
+        }
+        throw accountError;
+      }
+
+      const transaction = new TransactionBuilder(sourceAccount, {
+        fee: BASE_FEE,
+        networkPassphrase: Networks.TESTNET,
+      })
+        .addOperation(
+          Operation.payment({
+            destination: recipient,
+            asset: Asset.native(),
+            amount: amount,
+          })
+        )
+        .setTimeout(30) // 30 seconds timeout
+        .build();
+
+      transaction.sign(keypair);
+
+      const signedTransactionXDR = transaction.toXDR();
+
+      const res = await fetch("/api/transfer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          signedTransactionXDR,
+          recipient,
+          amount,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Transfer failed");
+      }
 
       setNotification({
         type: "success",
@@ -211,57 +261,10 @@ export default function DashboardPage() {
       await fetchData(publicKey);
     } catch (err) {
       console.error("Transfer error:", err);
-
-      if (
-        err instanceof Error &&
-        (err.message.includes("Transaction processing completed") ||
-          err.message.includes("Bad union switch") ||
-          err.message.includes("XDR"))
-      ) {
-        try {
-          await new Promise((resolve) => setTimeout(resolve, 3000));
-
-          const newBalance = await getNativeBalance(publicKey);
-          const newBalanceNum = parseFloat(newBalance);
-
-          if (initialBalance - newBalanceNum >= numAmount * 0.99) {
-            setNotification({
-              type: "success",
-              text: `✅ Transaction completed! Sent ${amount} XLM to ${recipient.slice(
-                0,
-                8
-              )}...${recipient.slice(-8)}`,
-            });
-
-            // Clear form and refresh data
-            setRecipient("");
-            setAmount("");
-            setShowSendForm(false);
-            await fetchData(publicKey);
-          } else {
-            setNotification({
-              type: "error",
-              text: "⚠️ Transaction status unclear. Please check your balance and transaction history.",
-            });
-          }
-        } catch (balanceError) {
-          console.error(
-            "Error checking balance after transaction:",
-            balanceError
-          );
-          setNotification({
-            type: "error",
-            text: "⚠️ Transaction status unclear. Please check your balance and try again if needed.",
-          });
-        }
-      } else {
-        setNotification({
-          type: "error",
-          text: `❌ ${(err as Error).message}`,
-        });
-      }
-    } finally {
-      setIsLoading(false);
+      setNotification({
+        type: "error",
+        text: `⌫ ${(err as Error).message}`,
+      });
     }
   };
 
@@ -274,7 +277,6 @@ export default function DashboardPage() {
       return;
     }
     setNotification(null);
-    setIsLoading(true);
     try {
       const res = await fetch("/api/mpesa/stk-push", {
         method: "POST",
@@ -304,8 +306,6 @@ export default function DashboardPage() {
     } catch (err) {
       console.error("Deposit error:", err);
       setNotification({ type: "error", text: `❌ ${(err as Error).message}` });
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -328,6 +328,8 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     try {
+      sessionStorage.removeItem("encryptedUserSecretKey");
+      sessionStorage.removeItem("sessionEncryptionKey");
       await fetch("/api/logout", {
         method: "POST",
       });
@@ -341,52 +343,38 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100">
-      {/* Header */}
+    <main className="flex min-h-screen flex-col items-center p-12 pt-28">
       <Header
         username={getUsername()}
         onLogout={handleLogout}
         publicKey={publicKey || ""}
       />
-
-      {/* Main Content */}
-      <main className="pb-8 sm:pb-12">
-        {/* Balance Section */}
+      <div className="w-full max-w-4xl">
         <Balance
           balance={balance}
-          isLoading={isLoading}
           onRefresh={() => publicKey && fetchData(publicKey)}
+          isLoading={isLoading}
         />
-
-        {/* Quick Actions */}
         <Actions
           onDepositClick={toggleDepositForm}
           onSendClick={toggleSendForm}
         />
-
-        {/* Global Notification */}
         {!whatsappVerified && (
-          <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
-            <div className="p-4 rounded-xl text-center bg-yellow-500/10 border border-yellow-500/20 text-yellow-400">
-              Please verify your WhatsApp account to enable all features.
-            </div>
-          </div>
+          <Card className="mb-6 p-4 text-center text-yellow-400 bg-yellow-500/10 border border-yellow-500/20">
+            Please verify your WhatsApp account to enable all features.
+          </Card>
         )}
         {notification && (
-          <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mb-6">
-            <div
-              className={`p-4 rounded-xl text-center ${
-                notification.type === "success"
-                  ? "bg-green-500/10 border border-green-500/20 text-green-400"
-                  : "bg-red-500/10 border border-red-500/20 text-red-400"
-              }`}
-            >
-              {notification.text}
-            </div>
-          </div>
+          <Card
+            className={`mb-6 p-4 text-center ${
+              notification.type === "success"
+                ? "text-green-400 bg-green-500/10 border border-green-500/20"
+                : "text-red-400 bg-red-500/10 border border-red-500/20"
+            }`}
+          >
+            {notification.text}
+          </Card>
         )}
-
-        {/* Forms */}
         {showDepositForm && (
           <DepositForm
             amount={amount}
@@ -397,7 +385,6 @@ export default function DashboardPage() {
             onDeposit={handleDeposit}
           />
         )}
-
         {showSendForm && (
           <SendMoneyForm
             recipient={recipient}
@@ -409,15 +396,13 @@ export default function DashboardPage() {
             currentBalance={balance || "0"}
           />
         )}
-
-        {/* Stellar Transactions */}
         <TransactionList
           transactions={stellarTransactions}
-          isLoading={isLoading}
           onRefresh={() => publicKey && fetchData(publicKey)}
           userAddress={publicKey || undefined}
+          isLoading={isLoading}
         />
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }

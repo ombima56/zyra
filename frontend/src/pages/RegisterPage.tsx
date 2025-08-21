@@ -1,132 +1,257 @@
-"use client";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+'use client';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import Link from 'next/link';
+import { createKeypair, getKeypairFromMnemonic } from '@/lib/stellar';
+import { Copy } from 'lucide-react';
+import CryptoJS from 'crypto-js';
 
 export default function RegisterPage() {
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [password, setPassword] = useState("");
-  const [message, setMessage] = useState("");
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showVerification, setShowVerification] = useState(false);
-  const [verificationCode, setVerificationCode] = useState("");
+  const [verificationCode, setVerificationCode] = useState('');
+  const [mnemonic, setMnemonic] = useState('');
+  const [showSeedPhrase, setShowSeedPhrase] = useState(false);
+  const [verified, setVerified] = useState(false);
+  const [hasCopiedMnemonic, setHasCopiedMnemonic] = useState(false);
+
+  const [mnemonicWords, setMnemonicWords] = useState<string[]>([]);
+  const [verificationInputs, setVerificationInputs] = useState<
+    { value: string; disabled: boolean }[]
+  >([]);
+
   const router = useRouter();
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleInitialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage("");
-    setIsLoading(true);
+    const { mnemonic: newMnemonic } = createKeypair();
+    setMnemonic(newMnemonic);
+    setMnemonicWords(newMnemonic.split(' '));
 
+    const words = newMnemonic.split(' ');
+    const indicesToFill = new Set<number>();
+    while (indicesToFill.size < 6) {
+      indicesToFill.add(Math.floor(Math.random() * 12));
+    }
+
+    const initialInputs = words.map((word, index) => ({
+      value: indicesToFill.has(index) ? word : '',
+      disabled: indicesToFill.has(index),
+    }));
+    setVerificationInputs(initialInputs);
+
+    setShowSeedPhrase(true);
+  };
+
+  const handleVerificationInputChange = (index: number, value: string) => {
+    const newInputs = [...verificationInputs];
+    newInputs[index].value = value;
+    setVerificationInputs(newInputs);
+  };
+
+  const handleVerificationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const enteredMnemonic = verificationInputs
+      .map((input) => input.value)
+      .join(' ');
+
+    if (enteredMnemonic.trim() !== mnemonic.trim()) {
+      setMessage('Seed phrase does not match. Please try again.');
+      return;
+    }
+    setVerified(true);
+    setMessage('');
+
+    setIsLoading(true);
     try {
-      const res = await fetch("/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, phone, password }),
+      const keypair = getKeypairFromMnemonic(mnemonic);
+      const secretKey = keypair.secret();
+      const encryptedSecretKey = CryptoJS.AES.encrypt(
+        secretKey,
+        password
+      ).toString();
+
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          phone,
+          password,
+          publicKey: keypair.publicKey(),
+          encryptedSecretKey,
+        }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.message || "Registration failed");
+        throw new Error(data.message || 'Registration failed');
       }
 
       setVerificationCode(data.whatsappVerificationCode);
       setShowVerification(true);
-      setMessage("✅ Registration successful! Please verify your WhatsApp.");
+      setMessage('✅ Registration successful! Please verify your WhatsApp.');
     } catch (error: any) {
-      console.error("Registration error:", error);
+      console.error('Registration error:', error);
       setMessage(` ${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
+  const handleCopyAndProceed = async () => {
+    try {
+      await navigator.clipboard.writeText(mnemonic);
+      setMessage('Mnemonic copied to clipboard!');
+      setHasCopiedMnemonic(true);
+      setTimeout(() => setMessage(''), 3000);
+    } catch (err) {
+      console.error('Failed to copy mnemonic:', err);
+      setMessage('Failed to copy mnemonic. Please copy manually.');
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-gray-100 flex flex-col items-center justify-center p-4">
-      <div className="max-w-md w-full text-center bg-gray-800 p-8 rounded-xl shadow-lg">
-        <h1 className="text-3xl font-bold mb-6">
-          {showVerification ? "Verify your WhatsApp" : "Register for Zrya"}
-        </h1>
+    <main className="flex min-h-screen flex-col items-center justify-center p-12">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle className="text-3xl font-bold text-center">
+            {showSeedPhrase ? 'Save Your Seed Phrase' : 'Register for Zrya'}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {message && (
+            <Alert variant={message.includes('✅') ? 'default' : 'destructive'}>
+              <AlertDescription>{message}</AlertDescription>
+            </Alert>
+          )}
 
-        {message && (
-          <div
-            className={`p-4 rounded-xl mb-6 ${
-              message.includes("✅")
-                ? "bg-green-500/10 border border-green-500/20 text-green-400"
-                : "bg-red-500/10 border border-red-500/20 text-red-400"
-            }`}
-          >
-            <p className="text-sm">{message}</p>
-          </div>
-        )}
-
-        {showVerification ? (
-          <div>
-            <p className="text-lg">
-              Send the following code to our WhatsApp number to verify your
-              account:
-            </p>
-            <p className="text-2xl font-bold my-2">+1 555 141 3984</p>
-            <p className="text-4xl font-bold my-4">{verificationCode}</p>
-            <p className="text-gray-400">
-              Once you have verified your account, you can{" "}
-              <a href="/login" className="text-blue-500 hover:underline">
-                log in
-              </a>
-              .
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <input
+          {!showSeedPhrase ? (
+            <form onSubmit={handleInitialSubmit} className="space-y-4 mt-4">
+              <Input
                 type="email"
                 placeholder="Email"
-                className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
-            </div>
-            <div>
-              <input
+              <Input
                 type="tel"
                 placeholder="Phone Number"
-                className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 required
               />
-            </div>
-            <div>
-              <input
+              <Input
                 type="password"
                 placeholder="Password"
-                className="w-full p-3 rounded-lg bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
+              <Button type="submit" disabled={isLoading} className="w-full">
+                {isLoading ? 'Generating Keys...' : 'Register'}
+              </Button>
+            </form>
+          ) : !verified ? (
+            <>
+              {!hasCopiedMnemonic ? (
+                <div>
+                  <p className="text-lg text-center text-muted-foreground mb-4">
+                    Please write down your 12-word seed phrase in the correct
+                    order. This is the only way to recover your account.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3 my-4 p-4 border rounded-lg bg-muted">
+                    {mnemonicWords.map((word, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <span className="text-muted-foreground text-sm w-6 text-right">
+                          {index + 1}.
+                        </span>
+                        <span className="text-lg font-mono font-semibold text-foreground">
+                          {word}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    onClick={handleCopyAndProceed}
+                    className="w-full mt-4"
+                  >
+                    <Copy className="mr-2 h-4 w-4" /> Copy and Proceed
+                  </Button>
+                </div>
+              ) : (
+                <div>
+                  <p className="text-lg text-center text-muted-foreground mb-4">
+                    To verify, please fill in the missing words below:
+                  </p>
+                  <form
+                    onSubmit={handleVerificationSubmit}
+                    className="grid grid-cols-2 gap-3 mt-4"
+                  >
+                    {verificationInputs.map((input, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <span className="text-muted-foreground text-sm w-6 text-right">
+                          {index + 1}.
+                        </span>
+                        <Input
+                          type="text"
+                          value={input.value}
+                          onChange={(e) =>
+                            handleVerificationInputChange(index, e.target.value)
+                          }
+                          disabled={input.disabled}
+                          className="font-mono"
+                          required
+                        />
+                      </div>
+                    ))}
+                    <div className="col-span-2 mt-4">
+                      <Button type="submit" className="w-full">
+                        Verify & Register
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center mt-4">
+              <p className="text-lg">
+                Send the following code to our WhatsApp number to verify your
+                account:
+              </p>
+              <p className="text-2xl font-bold my-2">+1 555 141 3984</p>
+              <p className="text-4xl font-bold my-4">{verificationCode}</p>
+              <p className="text-muted-foreground">
+                Once you have verified your account, you can{' '}
+                <Link href="/login" className="text-accent hover:underline">
+                  log in
+                </Link>
+                .
+              </p>
             </div>
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white font-semibold py-3 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg"
-            >
-              {isLoading ? "Registering..." : "Register"}
-            </button>
-          </form>
-        )}
+          )}
 
-        {!showVerification && (
-          <p className="mt-6 text-gray-400 text-sm">
-            Already have an account?{" "}
-            <a href="/login" className="text-blue-500 hover:underline">
-              Login here
-            </a>
-          </p>
-        )}
-      </div>
-    </div>
+          {!showSeedPhrase && (
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+              Already have an account?{' '}
+              <Link href="/login" className="text-accent hover:underline">
+                Login here
+              </Link>
+            </p>
+          )}
+        </CardContent>
+      </Card>
+    </main>
   );
 }

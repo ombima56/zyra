@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { Keypair } from "@stellar/stellar-sdk";
 import bcrypt from "bcrypt";
 import { formatPhoneNumber } from "@/lib/whatsapp";
 
 export async function POST(req: NextRequest) {
-  const { email, phone, password } = await req.json();
+  const { email, phone, password, publicKey, encryptedSecretKey } = await req.json();
 
-  if (!email || !phone || !password) {
+  if (!email || !phone || !password || !publicKey || !encryptedSecretKey) {
     return NextResponse.json(
       { message: "Missing required fields" },
       { status: 400 }
@@ -28,10 +27,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const keypair = Keypair.random();
-    const publicKey = keypair.publicKey();
-    const secret = keypair.secret();
-
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const verificationCode = Math.floor(
@@ -44,7 +39,7 @@ export async function POST(req: NextRequest) {
         phone: formattedPhone,
         password: hashedPassword,
         publicKey,
-        secret, // Storing secret directly for now
+        encryptedSecretKey,
         whatsappVerificationCode: verificationCode,
       },
     });
@@ -58,8 +53,10 @@ export async function POST(req: NextRequest) {
     );
   } catch (error) {
     console.error("Registration error:", error);
+    const errorMessage =
+      error instanceof Error ? error.message : "An unknown error occurred";
     return NextResponse.json(
-      { message: "Internal server error" },
+      { message: "Internal server error", error: errorMessage },
       { status: 500 }
     );
   }

@@ -1,4 +1,10 @@
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Send, QrCode } from "lucide-react";
 
 type SendMoneyFormProps = {
   recipient: string;
@@ -21,7 +27,6 @@ export function SendMoneyForm({
   isLoading = false,
   currentBalance = "0",
 }: SendMoneyFormProps) {
-  const [showAddressHelper, setShowAddressHelper] = useState(false);
   const [isSending, setIsSending] = useState(false);
 
   const isValidAddress = recipient.startsWith("G") && recipient.length === 56;
@@ -35,210 +40,180 @@ export function SendMoneyForm({
     try {
       await onSend();
     } finally {
-      // Reset sending state after a small delay to show completion
       setTimeout(() => setIsSending(false), 500);
     }
   };
 
+  const formatBalance = (bal: string): string => {
+    const num = parseFloat(bal);
+    return num.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+  const shortenAddress = (address: string, isMobile: boolean = false): string => {
+    if (!address || address.length < 10) return address;
+    const chars = isMobile ? 4 : 6;
+    return `${address.slice(0, chars)}...${address.slice(-chars)}`;
+  };
+
   return (
-    <div className="w-full max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 mb-6 sm:mb-8">
-      <div className="bg-gray-800/80 backdrop-blur-sm border border-gray-700/50 rounded-2xl p-4 sm:p-6 lg:p-8 shadow-xl">
-        <div className="flex items-center space-x-3 mb-4 sm:mb-6">
-          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-600 rounded-xl flex items-center justify-center">
-            <svg
-              className="w-4 h-4 sm:w-5 sm:h-5 text-white"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M13 7l5 5m0 0l-5 5m5-5H6"
-              />
-            </svg>
-          </div>
-          <div>
-            <h3 className="text-lg sm:text-xl lg:text-2xl font-bold text-white">
-              Send Money
-            </h3>
-            <p className="text-sm text-gray-400">
-              Transfer funds to another wallet
-            </p>
-          </div>
+    <Card className="w-full max-w-4xl mb-6 sm:mb-8">
+      <CardHeader className="pb-4 sm:pb-6">
+        <CardTitle className="flex items-center gap-2 text-lg sm:text-xl">
+          <Send className="h-5 w-5 sm:h-6 sm:w-6" /> 
+          Send Money
+        </CardTitle>
+        {/* Balance display */}
+        <div className="mt-2 sm:mt-3">
+          <p className="text-xs sm:text-sm text-muted-foreground">
+            Available Balance: <span className="font-medium">{formatBalance(currentBalance)} XLM</span>
+          </p>
         </div>
-
-        <div className="space-y-4 sm:space-y-6">
-          {/* Recipient Input */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-300">
-                Recipient Address
-              </label>
-              <button
+      </CardHeader>
+      <CardContent className="px-4 sm:px-6">
+        {message && (
+          <Alert 
+            variant={message.includes("✅") ? "default" : "destructive"}
+            className="mb-4"
+          >
+            <AlertDescription className="text-sm sm:text-base">
+              {message}
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        <form onSubmit={(e) => e.preventDefault()} className="space-y-4 sm:space-y-6">
+          <div className="space-y-2 sm:space-y-3">
+            <Label htmlFor="recipient" className="text-sm sm:text-base font-medium">
+              Recipient Address
+            </Label>
+            <div className="relative">
+              <Input
+                id="recipient"
+                type="text"
+                placeholder="GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                value={recipient}
+                onChange={(e) => onRecipientChange(e.target.value)}
+                disabled={isSending}
+                className="h-10 sm:h-11 text-sm sm:text-base pr-10 sm:pr-12 font-mono"
+              />
+              {/* QR Code button for mobile - placeholder for future implementation */}
+              <Button
                 type="button"
-                onClick={() => setShowAddressHelper(!showAddressHelper)}
-                className="text-xs text-blue-400 hover:text-blue-300"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1 h-8 w-8 sm:h-9 sm:w-9 sm:right-1 sm:top-1"
+                disabled={isSending}
+                title="Scan QR Code (Coming Soon)"
               >
-                Address format help
-              </button>
+                <QrCode className="h-4 w-4 text-muted-foreground" />
+              </Button>
             </div>
-
-            <input
-              type="text"
-              placeholder="GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-              className={`w-full p-3 sm:p-4 rounded-xl border text-white placeholder-gray-500 focus:outline-none focus:ring-2 transition-all text-sm sm:text-base font-mono ${
-                recipient && !isValidAddress
-                  ? "bg-red-900/20 border-red-500/50 focus:ring-red-500"
-                  : "bg-gray-900/80 border-gray-600/50 focus:ring-blue-500"
-              } focus:border-transparent`}
-              value={recipient}
-              onChange={(e) => onRecipientChange(e.target.value)}
-              disabled={isSending}
-            />
-
+            
             {recipient && !isValidAddress && (
-              <p className="mt-1 text-xs text-red-400">
-                Invalid address format. Must start with 'G' and be 56 characters
-                long.
+              <p className="text-xs sm:text-sm text-destructive mt-1">
+                Invalid address format. Must start with 'G' and be 56 characters long.
               </p>
             )}
-
-            {showAddressHelper && (
-              <div className="mt-2 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg text-xs text-blue-300">
-                Stellar addresses start with 'G' and are exactly 56 characters
-                long. Example:
-                GCLWGQPMKXQSPF776IU33AH4PZNOOWNAWGGKVTBQMIC5IMKUNP3E6NVU
+            
+            {/* Show shortened address on mobile for confirmation */}
+            {recipient && isValidAddress && (
+              <div className="block sm:hidden">
+                <p className="text-xs text-muted-foreground mt-1">
+                  Sending to: <span className="font-mono">{shortenAddress(recipient, true)}</span>
+                </p>
               </div>
             )}
           </div>
 
-          {/* Amount Input */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-medium text-gray-300">
-                Amount (USD)
-              </label>
-              <span className="text-xs text-gray-400">
-                Balance: ${currentBalance}
-              </span>
-            </div>
-            <div className="relative">
-              <span className="absolute left-3 sm:left-4 top-1/2 transform -translate-y-1/2 text-gray-400 text-lg sm:text-xl">
-                $
-              </span>
-              <input
-                type="number"
-                placeholder="0.00"
-                className={`w-full pl-8 sm:pl-10 pr-3 sm:pr-4 py-3 sm:py-4 rounded-xl border text-white placeholder-gray-500 focus:outline-none focus:ring-2 transition-all text-sm sm:text-base ${
-                  amount && !isValidAmount
-                    ? "bg-red-900/20 border-red-500/50 focus:ring-red-500"
-                    : "bg-gray-900/80 border-gray-600/50 focus:ring-blue-500"
-                } focus:border-transparent`}
-                value={amount}
-                onChange={(e) => onAmountChange(e.target.value)}
-                step="0.01"
-                min="0.01"
-                max={currentBalance}
-                disabled={isSending}
-              />
-            </div>
-
+          <div className="space-y-2 sm:space-y-3">
+            <Label htmlFor="amount" className="text-sm sm:text-base font-medium">
+              Amount (XLM)
+            </Label>
+            <Input
+              id="amount"
+              type="number"
+              placeholder="0.00"
+              value={amount}
+              onChange={(e) => onAmountChange(e.target.value)}
+              step="0.01"
+              min="0.01"
+              max={currentBalance}
+              disabled={isSending}
+              className="h-10 sm:h-11 text-base"
+            />
             {amount && !isValidAmount && (
-              <p className="mt-1 text-xs text-red-400">
+              <p className="text-xs sm:text-sm text-destructive mt-1">
                 {numAmount > balance
                   ? "Insufficient balance"
                   : "Amount must be greater than 0"}
               </p>
             )}
-
-            {/* Quick amount buttons */}
-            <div className="flex space-x-2 mt-2">
+            
+            {/* Percentage buttons */}
+            <div className="grid grid-cols-4 gap-2 sm:flex sm:space-x-2 sm:gap-0 mt-2 sm:mt-3">
               {[25, 50, 75, 100].map((percentage) => {
                 const quickAmount = ((balance * percentage) / 100).toFixed(2);
                 return (
-                  <button
+                  <Button
                     key={percentage}
-                    type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => onAmountChange(quickAmount)}
-                    className="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded-md transition-colors"
                     disabled={balance <= 0 || isSending}
+                    className="h-8 sm:h-9 text-xs sm:text-sm px-2 sm:px-3"
                   >
                     {percentage}%
-                  </button>
+                  </Button>
                 );
               })}
             </div>
+            
+            {/* Amount preview */}
+            {amount && isValidAmount && (
+              <div className="bg-muted rounded-lg p-3 mt-3">
+                <p className="text-xs sm:text-sm text-muted-foreground">
+                  <span className="block sm:inline">You're sending: </span>
+                  <span className="font-medium text-foreground">{numAmount.toFixed(2)} XLM</span>
+                  <span className="block sm:inline sm:ml-2">
+                    Remaining balance: <span className="font-medium">{(balance - numAmount).toFixed(2)} XLM</span>
+                  </span>
+                </p>
+              </div>
+            )}
           </div>
 
-          {/* Transaction Summary */}
-          {recipient && amount && isValidAddress && isValidAmount && (
-            <div className="p-3 bg-gray-900/50 border border-gray-600/30 rounded-xl">
-              <h4 className="text-sm font-medium text-gray-300 mb-2">
-                Transaction Summary
-              </h4>
-              <div className="space-y-1 text-xs text-gray-400">
-                <div className="flex justify-between">
-                  <span>Amount:</span>
-                  <span className="text-white">${amount}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>To:</span>
-                  <span className="text-white font-mono">
-                    {recipient.slice(0, 8)}...{recipient.slice(-8)}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Network Fee:</span>
-                  <span className="text-white">~$0.001</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Send Button */}
-          <button
+          <Button
+            type="submit"
             onClick={handleSend}
             disabled={
               isLoading || !isValidAddress || !isValidAmount || isSending
             }
-            className={`w-full font-semibold py-3 sm:py-4 px-4 rounded-xl transition-all duration-200 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed text-sm sm:text-base ${
-              isSending
-                ? "bg-gradient-to-r from-orange-600 to-orange-700 text-white"
-                : "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 text-white"
-            }`}
+            className="w-full h-11 sm:h-12 text-base font-medium"
           >
             {isSending ? (
-              <div className="flex items-center justify-center space-x-2">
+              <span className="flex items-center gap-2">
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Sending...</span>
-              </div>
-            ) : isLoading ? (
-              <div className="flex items-center justify-center space-x-2">
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Processing...</span>
-              </div>
+                Sending...
+              </span>
             ) : (
               "Confirm Send"
             )}
-          </button>
+          </Button>
+        </form>
 
-          {/* Message */}
-          {message && (
-            <div
-              className={`p-3 sm:p-4 rounded-xl text-center text-sm sm:text-base ${
-                message.includes("✅")
-                  ? "bg-green-500/10 border border-green-500/20 text-green-400"
-                  : "bg-red-500/10 border border-red-500/20 text-red-400"
-              }`}
-            >
-              {message}
-            </div>
-          )}
+        {/* Mobile-specific warning */}
+        <div className="mt-4 sm:hidden">
+          <div className="bg-yellow-50 dark:bg-yellow-900/10 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
+            <p className="text-xs text-yellow-800 dark:text-yellow-200">
+              ⚠️ <strong>Double-check the recipient address!</strong> Stellar transactions cannot be reversed once confirmed.
+            </p>
+          </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 

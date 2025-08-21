@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/session";
-import { transfer } from "@/lib/stellar";
+import { submitSignedTransaction } from "@/lib/stellar"; // Assuming this new function will be created
 import prisma from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
@@ -11,62 +11,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { recipient, amount } = await request.json();
+    const { signedTransactionXDR, recipient, amount } = await request.json();
 
     // Validate inputs
-    if (!recipient || !amount) {
+    if (!signedTransactionXDR || !recipient || !amount) {
       return NextResponse.json(
-        { error: "Recipient and amount are required" },
+        { error: "Missing signed transaction XDR, recipient, or amount" },
         { status: 400 }
       );
     }
 
-    // Convert amount to the smallest unit (assuming 7 decimals like USDC)
-    const amountInSmallestUnit = Math.floor(parseFloat(amount) * 10000000);
-
-    if (amountInSmallestUnit <= 0) {
-      return NextResponse.json(
-        { error: "Amount must be greater than 0" },
-        { status: 400 }
-      );
-    }
-
-    // Validate Stellar address format
-    if (!recipient.startsWith("G") || recipient.length !== 56) {
-      return NextResponse.json(
-        { error: "Invalid recipient address format" },
-        { status: 400 }
-      );
-    }
-
-    // Prevent self-transfer
-    if (recipient === session.user.publicKey) {
-      return NextResponse.json(
-        { error: "Cannot transfer to your own wallet" },
-        { status: 400 }
-      );
-    }
-
-    // Get user's secret key from database
-    const user = await prisma.user.findUnique({
-      where: { id: session.userId },
-      select: { secret: true, publicKey: true },
-    });
-
-    if (!user || !user.secret) {
-      return NextResponse.json(
-        { error: "User wallet not found" },
-        { status: 404 }
-      );
-    }
-
-    // Perform the transfer using the smart contract
-    await transfer(
-      user.publicKey,
-      recipient,
-      amountInSmallestUnit.toString(),
-      user.secret
-    );
+    // Submit the pre-signed transaction to the Stellar network
+    await submitSignedTransaction(signedTransactionXDR);
 
     // Record the transaction in the database
     await prisma.transaction.create({

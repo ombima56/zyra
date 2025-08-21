@@ -14,6 +14,7 @@ import {
   Asset,
   Horizon,
 } from "@stellar/stellar-sdk";
+import * as bip39 from "bip39";
 
 interface StellarBalance {
   asset_type: string;
@@ -52,7 +53,7 @@ const rpcUrl =
 const networkPassphrase =
   process.env.NEXT_PUBLIC_STELLAR_NETWORK || Networks.TESTNET;
 
-const server = new rpc.Server(rpcUrl);
+export const server = new rpc.Server(rpcUrl);
 const horizonUrl = "https://horizon-testnet.stellar.org";
 const horizonServer = new Horizon.Server(horizonUrl);
 
@@ -108,108 +109,30 @@ export const formatBalance = (balance: string): string => {
  * @returns An object containing the public and secret keys for the newly
  * generated keypair.
  */
-export const createKeypair = (): { publicKey: string; secret: string } => {
-  const keypair = Keypair.random();
+export const createKeypair = (): {
+  publicKey: string;
+  secret: string;
+  mnemonic: string;
+} => {
+  const mnemonic = bip39.generateMnemonic(128); // 12 words
+  const seed = bip39.mnemonicToSeedSync(mnemonic);
+  const keypair = Keypair.fromRawEd25519Seed(seed.slice(0, 32));
   return {
     publicKey: keypair.publicKey(),
     secret: keypair.secret(),
+    mnemonic,
   };
 };
 
 /**
- * Gets the balance of a user from the Soroban smart contract.
- * Returns the balance as a formatted decimal string (e.g., "0.00", "1.50")
+ * Gets a keypair from a mnemonic phrase.
+ *
+ * @param mnemonic - The mnemonic phrase.
+ * @returns A Stellar keypair.
  */
-export const getBalance = async (userAddress: string): Promise<string> => {
-  try {
-    if (!contractId) {
-      throw new Error(
-        "Contract ID is not configured. Please set NEXT_PUBLIC_PAYMENTS_CONTRACT_ID environment variable."
-      );
-    }
-
-    console.log("Getting balance for:", userAddress);
-    console.log("Contract ID:", contractId);
-
-    const userAddressObj = Address.fromString(userAddress);
-    const contractAddress = Address.fromString(contractId);
-
-    const operation = Operation.invokeHostFunction({
-      func: xdr.HostFunction.hostFunctionTypeInvokeContract(
-        new xdr.InvokeContractArgs({
-          contractAddress: contractAddress.toScAddress(),
-          functionName: "balance",
-          args: [userAddressObj.toScVal()],
-        })
-      ),
-      auth: [],
-    });
-
-    // Create a transaction builder with a dummy source account
-    const dummyKeypair = Keypair.random();
-    const dummyAccount = new Account(dummyKeypair.publicKey(), "0");
-
-    const transaction = new TransactionBuilder(dummyAccount, {
-      fee: BASE_FEE,
-      networkPassphrase,
-    })
-      .addOperation(operation)
-      .setTimeout(TimeoutInfinite)
-      .build();
-
-    // Simulate the transaction to get the result
-    console.log("Simulating balance query...");
-    const simulationResponse = await server.simulateTransaction(transaction);
-
-    if (rpc.Api.isSimulationError(simulationResponse)) {
-      const errorMessage = simulationResponse.error;
-      console.log("Simulation error details:", errorMessage);
-
-      if (
-        errorMessage.includes("UnreachableCodeReached") ||
-        errorMessage.includes("InvalidAction") ||
-        errorMessage.includes("balance") ||
-        errorMessage.includes("not initialized")
-      ) {
-        console.log(
-          "User not found or contract not initialized, returning 0.00"
-        );
-        return "0.00";
-      }
-
-      console.error("Unexpected simulation error:", errorMessage);
-      throw new Error(`Balance query failed: ${errorMessage}`);
-    }
-
-    if (!simulationResponse.result) {
-      console.log("No result returned, returning 0.00");
-      return "0.00";
-    }
-
-    const resultXdr = simulationResponse.result.retval;
-    const result = scValToNative(resultXdr);
-
-    console.log("Balance query successful, raw result (stroops):", result);
-
-    const stroopsBalance = BigInt(result.toString());
-    const decimalBalance = stroopsToDecimal(stroopsBalance);
-    const formattedBalance = formatBalance(decimalBalance);
-
-    console.log("Formatted balance:", formattedBalance);
-    return formattedBalance;
-  } catch (error) {
-    console.error("Error getting balance:", error);
-
-    if (
-      error instanceof Error &&
-      !error.message.includes("Balance query failed")
-    ) {
-      console.log("Unexpected error, returning 0.00 as fallback");
-      return "0.00";
-    }
-
-    throw error;
-  }
+export const getKeypairFromMnemonic = (mnemonic: string): Keypair => {
+  const seed = bip39.mnemonicToSeedSync(mnemonic);
+  return Keypair.fromRawEd25519Seed(seed.slice(0, 32));
 };
 
 /**
@@ -318,6 +241,89 @@ async function submitSorobanTransaction(
     throw error;
   }
 }
+
+/**
+ * Submits a pre-signed Stellar transaction XDR to the network.
+ *
+ * @param {string} signedTransactionXDR - The base64 encoded signed transaction XDR.
+ *
+ * @returns {Promise<void>}
+ *
+ * @throws {Error} If transaction submission fails.
+ */
+export const submitSignedTransaction = async (
+  signedTransactionXDR: string
+): Promise<void> => {
+  try {
+    const transaction = TransactionBuilder.fromXDR(
+      signedTransactionXDR,
+      networkPassphrase
+    );
+
+    const transactionResponse = await server.sendTransaction(transaction);
+
+    if (transactionResponse.status === "ERROR") {
+      console.error("sendTransaction ERROR:", transactionResponse);
+      throw new Error("Transaction submission failed.");
+    }
+
+    let attempts = 0;
+    const maxAttempts = 30;
+    let getResponse: any;
+
+    while (attempts < maxAttempts) {
+      try {
+        getResponse = await server.getTransaction(transactionResponse.hash);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        if (msg.includes("Bad union switch") || msg.includes("XDR")) {
+          console.warn(
+            "Non-fatal status decode error (likely SDK/XDR mismatch). Assume submission ok; verify externally if needed."
+          );
+          return;
+        }
+        throw e;
+      }
+
+      if (getResponse.status === rpc.Api.GetTransactionStatus.SUCCESS) {
+        console.log("Transaction successful:", transactionResponse.hash);
+        return;
+      }
+
+      if (getResponse.status === rpc.Api.GetTransactionStatus.FAILED) {
+        console.error("Transaction FAILED (no XDR decode):", getResponse);
+        throw new Error(
+          "Transaction failed. This could be due to insufficient balance, invalid arguments, or network issues."
+        );
+      }
+
+      if (getResponse.status === rpc.Api.GetTransactionStatus.NOT_FOUND) {
+        attempts += 1;
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+        continue;
+      }
+
+      console.log("Transaction status:", getResponse.status);
+      return;
+    }
+
+    throw new Error(
+      "Transaction confirmation timeout. Please check the transaction status manually."
+    );
+  } catch (error) {
+    console.error("Error submitting signed transaction:", error);
+    if (
+      error instanceof Error &&
+      (error.message.includes("Bad union switch") ||
+        error.message.includes("XDR"))
+    ) {
+      throw new Error(
+        "Transaction submitted, but status decoding encountered an error. Please verify the transaction status separately."
+      );
+    }
+    throw error;
+  }
+};
 
 /**
  * Transfers tokens from one user to another via the smart contract.
@@ -460,24 +466,30 @@ export const getNativeBalance = async (
       const accountEntry = entry.val.account();
 
       const balanceInStroops = accountEntry.balance().toString();
-
       const balanceInXLM = Number(balanceInStroops) / 10000000;
 
       return balanceInXLM.toFixed(2);
     } else {
-      console.log(`Account not found or has no ledger entry: ${userAddress}`);
+      console.log(`Account has no ledger entry: ${userAddress}`);
       return "0.00";
     }
   } catch (error) {
     console.error("Error getting native XLM balance:", error);
+
     if (error instanceof Error && error.message.includes("Account not found")) {
-      console.log("Account not found on network, returning 0.00");
+      console.log(
+        "Account not found on network - this is normal for new accounts"
+      );
       return "0.00";
     }
-    throw error;
+
+    console.warn(
+      "Network or other error fetching balance, returning 0.00:",
+      error
+    );
+    return "0.00";
   }
 };
-
 /**
  * Transfers native XLM from one account to another.
  * @param senderSecret - The secret key of the sender.
@@ -607,16 +619,26 @@ export const transferNative = async (
         throw new Error(
           "Insufficient balance to complete the transfer including fees."
         );
-      } else if (
-        error.message.includes("Bad union switch") ||
-        error.message.includes("XDR")
-      ) {
-        throw new Error(
-          "Transaction processing completed, but status confirmation had an error. Please check your balance to confirm if the transaction succeeded."
-        );
       }
     }
 
+    throw error;
+  }
+};
+
+export const accountExists = async (publicKey: string): Promise<boolean> => {
+  try {
+    await server.getAccount(publicKey);
+    return true;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message.includes("Account not found") ||
+        error.message.includes("Not Found") ||
+        error.message.includes("not_found"))
+    ) {
+      return false;
+    }
     throw error;
   }
 };
@@ -631,13 +653,59 @@ export const getTransactionHistory = async (
   try {
     console.log("Fetching transaction history for:", userAddress);
 
-    const response = await horizonServer
-      .transactions()
-      .forAccount(userAddress)
-      .order("desc")
-      .limit(50)
-      .includeFailed(true)
-      .call();
+    let response;
+    try {
+      response = await horizonServer
+        .transactions()
+        .forAccount(userAddress)
+        .order("desc")
+        .limit(50)
+        .includeFailed(true)
+        .call();
+    } catch (horizonError) {
+      console.log("Horizon error details:", {
+        error: horizonError,
+        message:
+          horizonError instanceof Error
+            ? horizonError.message
+            : "Unknown error",
+        name: horizonError instanceof Error ? horizonError.name : "Unknown",
+        stack: horizonError instanceof Error ? horizonError.stack : "No stack",
+      });
+
+      // Check for various "not found" scenarios
+      if (horizonError instanceof Error) {
+        const errorMsg = horizonError.message.toLowerCase();
+        if (
+          errorMsg.includes("not found") ||
+          errorMsg.includes("account not found") ||
+          errorMsg.includes("404") ||
+          horizonError.name === "NotFoundError"
+        ) {
+          console.log(
+            "Account not found via Horizon API, returning empty transaction history"
+          );
+          return [];
+        }
+      }
+
+      // Check if the error object has response property (common with HTTP errors)
+      if (
+        typeof horizonError === "object" &&
+        horizonError !== null &&
+        "response" in horizonError
+      ) {
+        const httpError = horizonError as any;
+        if (httpError.response?.status === 404) {
+          console.log(
+            "Account not found (HTTP 404), returning empty transaction history"
+          );
+          return [];
+        }
+      }
+
+      throw horizonError; // Re-throw if it's not a "not found" error
+    }
 
     console.log("Transaction history response:", response);
 
@@ -765,18 +833,56 @@ export const getTransactionHistory = async (
     console.log("Processed transactions:", processedTransactions);
     return processedTransactions;
   } catch (error) {
-    console.error("Error fetching transaction history:", error);
+    console.log("Error fetching transaction history - Full error details:", {
+      error: error,
+      errorType: typeof error,
+      errorConstructor: error?.constructor?.name,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : "Unknown",
+      errorStack: error instanceof Error ? error.stack : "No stack",
+      errorStringified: JSON.stringify(error),
+      errorKeys: error && typeof error === "object" ? Object.keys(error) : [],
+    });
 
-    if (error instanceof Error && error.message.includes("Account not found")) {
-      console.log("Account not found, returning empty transaction history");
+    if (error instanceof Error) {
+      const errorMsg = error.message.toLowerCase();
+      if (
+        errorMsg.includes("account not found") ||
+        errorMsg.includes("not found") ||
+        errorMsg.includes("not_found") ||
+        errorMsg.includes("404") ||
+        error.name === "NotFoundError"
+      ) {
+        console.log("Account not found - returning empty transaction history");
+        return [];
+      }
+    }
+
+    // Check for HTTP response errors
+    if (typeof error === "object" && error !== null && "response" in error) {
+      const httpError = error as any;
+      if (httpError.response?.status === 404) {
+        console.log(
+          "Account not found (HTTP 404) - returning empty transaction history"
+        );
+        return [];
+      }
+    }
+
+    if (
+      !error ||
+      (typeof error === "object" && Object.keys(error).length === 0)
+    ) {
+      console.log(
+        "Empty error object - assuming new account, returning empty transaction history"
+      );
       return [];
     }
 
-    throw new Error(
-      `Failed to fetch transaction history: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`
+    console.warn(
+      "Unknown error fetching transaction history, returning empty array"
     );
+    return [];
   }
 };
 

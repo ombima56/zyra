@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import { Button } from "@/components/ui/button";
 import { Logo } from "./logo";
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
+import Link from "next/link";
 
 const Navbar = () => {
   const { setTheme } = useTheme();
@@ -44,10 +45,14 @@ const Navbar = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" className="hidden md:inline-flex">
-            Login
-          </Button>
-          <Button className="hidden md:inline-flex">Register</Button>
+          <Link href="/login">
+            <Button variant="outline" className="hidden md:inline-flex">
+              Login
+            </Button>
+          </Link>
+          <Link href="/register">
+            <Button className="hidden md:inline-flex">Register</Button>
+          </Link>
 
           {/* Mobile Menu */}
           <div className="md:hidden">
