@@ -21,7 +21,7 @@ import {
   Operation,
   Asset,
   Account,
-  Keypair
+  Keypair,
 } from "@stellar/stellar-sdk";
 import CryptoJS from "crypto-js";
 
@@ -103,42 +103,30 @@ export default function DashboardPage() {
       const balanceResult = await getNativeBalance(pk);
       setBalance(balanceResult);
 
+      // Update balance in database
       await fetch("/api/user/balance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ publicKey: pk, balance: balanceResult }),
       });
 
-      try {
-        const stellarTxHistory = await getTransactionHistory(pk);
-        setStellarTransactions(stellarTxHistory);
-        console.log("Fetched Stellar transactions:", stellarTxHistory);
-      } catch (txError) {
-        console.error("Error fetching Stellar transactions:", txError);
-        setStellarTransactions([]);
-
-        if (
-          !(
-            txError instanceof Error &&
-            txError.message.includes("Account not found")
-          )
-        ) {
-          setNotification({
-            type: "error",
-            text: "Failed to load transaction history. Balance loaded successfully.",
-          });
-        }
-      }
+      const stellarTxHistory = await getTransactionHistory(pk);
+      setStellarTransactions(stellarTxHistory);
+      console.log("Fetched Stellar transactions:", stellarTxHistory);
 
       if (notification?.type === "error") {
         setNotification(null);
       }
     } catch (error) {
       console.error("Error fetching data:", error);
+
+      // Only show error notification for actual network/API issues, not for new accounts
       setNotification({
         type: "error",
-        text: `❌ Failed to load account data. Please try again.`,
+        text: "Network error occurred. Please check your connection and try again.",
       });
+
+      // Set safe defaults
       setBalance("0.00");
       setStellarTransactions([]);
     } finally {
@@ -221,10 +209,29 @@ export default function DashboardPage() {
 
     try {
       const keypair = Keypair.fromSecret(secretKey);
-      const sourceAccount = await new Account(
-        keypair.publicKey(),
-        (await server.getAccount(keypair.publicKey())).sequenceNumber()
-      );
+
+      let sourceAccount;
+      try {
+        const accountResponse = await server.getAccount(keypair.publicKey());
+        sourceAccount = new Account(
+          keypair.publicKey(),
+          accountResponse.sequenceNumber()
+        );
+      } catch (accountError) {
+        if (
+          accountError instanceof Error &&
+          (accountError.message.includes("Account not found") ||
+            accountError.message.includes("Not Found") ||
+            accountError.message.includes("not_found"))
+        ) {
+          setNotification({
+            type: "error",
+            text: "Your account is not yet activated on the network. You need to receive at least 1 XLM to activate it.",
+          });
+          return;
+        }
+        throw accountError;
+      }
 
       const transaction = new TransactionBuilder(sourceAccount, {
         fee: BASE_FEE,
@@ -276,7 +283,7 @@ export default function DashboardPage() {
       console.error("Transfer error:", err);
       setNotification({
         type: "error",
-        text: `❌ ${(err as Error).message}`,
+        text: `⌫ ${(err as Error).message}`,
       });
     } finally {
       setIsLoading(false);
@@ -346,8 +353,8 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     try {
-      sessionStorage.removeItem("encryptedUserSecretKey"); // Clear encrypted secret key on logout
-      sessionStorage.removeItem("sessionEncryptionKey"); // Clear encryption key on logout
+      sessionStorage.removeItem("encryptedUserSecretKey");
+      sessionStorage.removeItem("sessionEncryptionKey");
       await fetch("/api/logout", {
         method: "POST",
       });

@@ -466,24 +466,30 @@ export const getNativeBalance = async (
       const accountEntry = entry.val.account();
 
       const balanceInStroops = accountEntry.balance().toString();
-
       const balanceInXLM = Number(balanceInStroops) / 10000000;
 
       return balanceInXLM.toFixed(2);
     } else {
-      console.log(`Account not found or has no ledger entry: ${userAddress}`);
+      console.log(`Account has no ledger entry: ${userAddress}`);
       return "0.00";
     }
   } catch (error) {
     console.error("Error getting native XLM balance:", error);
+
     if (error instanceof Error && error.message.includes("Account not found")) {
-      console.log("Account not found on network, returning 0.00");
+      console.log(
+        "Account not found on network - this is normal for new accounts"
+      );
       return "0.00";
     }
-    throw error;
+
+    console.warn(
+      "Network or other error fetching balance, returning 0.00:",
+      error
+    );
+    return "0.00";
   }
 };
-
 /**
  * Transfers native XLM from one account to another.
  * @param senderSecret - The secret key of the sender.
@@ -620,6 +626,23 @@ export const transferNative = async (
   }
 };
 
+export const accountExists = async (publicKey: string): Promise<boolean> => {
+  try {
+    await server.getAccount(publicKey);
+    return true;
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      (error.message.includes("Account not found") ||
+        error.message.includes("Not Found") ||
+        error.message.includes("not_found"))
+    ) {
+      return false;
+    }
+    throw error;
+  }
+};
+
 /**
  * Fetches and processes transaction history for a Stellar account.
  * Returns formatted transaction data suitable for display.
@@ -630,13 +653,59 @@ export const getTransactionHistory = async (
   try {
     console.log("Fetching transaction history for:", userAddress);
 
-    const response = await horizonServer
-      .transactions()
-      .forAccount(userAddress)
-      .order("desc")
-      .limit(50)
-      .includeFailed(true)
-      .call();
+    let response;
+    try {
+      response = await horizonServer
+        .transactions()
+        .forAccount(userAddress)
+        .order("desc")
+        .limit(50)
+        .includeFailed(true)
+        .call();
+    } catch (horizonError) {
+      console.log("Horizon error details:", {
+        error: horizonError,
+        message:
+          horizonError instanceof Error
+            ? horizonError.message
+            : "Unknown error",
+        name: horizonError instanceof Error ? horizonError.name : "Unknown",
+        stack: horizonError instanceof Error ? horizonError.stack : "No stack",
+      });
+
+      // Check for various "not found" scenarios
+      if (horizonError instanceof Error) {
+        const errorMsg = horizonError.message.toLowerCase();
+        if (
+          errorMsg.includes("not found") ||
+          errorMsg.includes("account not found") ||
+          errorMsg.includes("404") ||
+          horizonError.name === "NotFoundError"
+        ) {
+          console.log(
+            "Account not found via Horizon API, returning empty transaction history"
+          );
+          return [];
+        }
+      }
+
+      // Check if the error object has response property (common with HTTP errors)
+      if (
+        typeof horizonError === "object" &&
+        horizonError !== null &&
+        "response" in horizonError
+      ) {
+        const httpError = horizonError as any;
+        if (httpError.response?.status === 404) {
+          console.log(
+            "Account not found (HTTP 404), returning empty transaction history"
+          );
+          return [];
+        }
+      }
+
+      throw horizonError; // Re-throw if it's not a "not found" error
+    }
 
     console.log("Transaction history response:", response);
 
@@ -764,18 +833,56 @@ export const getTransactionHistory = async (
     console.log("Processed transactions:", processedTransactions);
     return processedTransactions;
   } catch (error) {
-    console.error("Error fetching transaction history:", error);
+    console.log("Error fetching transaction history - Full error details:", {
+      error: error,
+      errorType: typeof error,
+      errorConstructor: error?.constructor?.name,
+      errorMessage: error instanceof Error ? error.message : String(error),
+      errorName: error instanceof Error ? error.name : "Unknown",
+      errorStack: error instanceof Error ? error.stack : "No stack",
+      errorStringified: JSON.stringify(error),
+      errorKeys: error && typeof error === "object" ? Object.keys(error) : [],
+    });
 
-    if (error instanceof Error && error.message.includes("Account not found")) {
-      console.log("Account not found, returning empty transaction history");
+    if (error instanceof Error) {
+      const errorMsg = error.message.toLowerCase();
+      if (
+        errorMsg.includes("account not found") ||
+        errorMsg.includes("not found") ||
+        errorMsg.includes("not_found") ||
+        errorMsg.includes("404") ||
+        error.name === "NotFoundError"
+      ) {
+        console.log("Account not found - returning empty transaction history");
+        return [];
+      }
+    }
+
+    // Check for HTTP response errors
+    if (typeof error === "object" && error !== null && "response" in error) {
+      const httpError = error as any;
+      if (httpError.response?.status === 404) {
+        console.log(
+          "Account not found (HTTP 404) - returning empty transaction history"
+        );
+        return [];
+      }
+    }
+
+    if (
+      !error ||
+      (typeof error === "object" && Object.keys(error).length === 0)
+    ) {
+      console.log(
+        "Empty error object - assuming new account, returning empty transaction history"
+      );
       return [];
     }
 
-    throw new Error(
-      `Failed to fetch transaction history: ${
-        error instanceof Error ? error.message : "Unknown error"
-      }`
+    console.warn(
+      "Unknown error fetching transaction history, returning empty array"
     );
+    return [];
   }
 };
 
