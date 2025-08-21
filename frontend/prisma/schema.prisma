@@ -15,6 +15,7 @@ model User {
   phone                    String        @unique
   password                 String
   publicKey                String        @unique
+  encryptedSecretKey       String?       
   
   balance                  Float         @default(0)
   whatsappVerified         Boolean       @default(false)
