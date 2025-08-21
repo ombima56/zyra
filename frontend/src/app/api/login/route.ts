@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import bcrypt from "bcryptjs";
 import { createSession } from "@/lib/session"; // Import createSession
+import CryptoJS from "crypto-js";
 
 export async function POST(request: Request) {
   try {
@@ -28,11 +29,14 @@ export async function POST(request: Request) {
     // Create a server-side session and set an HTTP-only cookie
     await createSession(user.id);
 
-    // Return only necessary public data, no secret key
+    // Decrypt the secret key
+    const secretKey = CryptoJS.AES.decrypt(user.encryptedSecretKey, password).toString(CryptoJS.enc.Utf8);
+
+    // Return public key and decrypted secret
     return NextResponse.json(
       {
         publicKey: user.publicKey,
-        // encryptedSecret is no longer sent to the client
+        secretKey: secretKey,
       },
       { status: 200 }
     );
