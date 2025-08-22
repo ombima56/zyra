@@ -13,6 +13,12 @@ import {
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
+import {
+  NavigationMenu,
+  NavigationMenuItem,
+  NavigationMenuLink,
+  NavigationMenuList,
+} from "../ui/navigation-menu";
 
 const Navbar = () => {
   const { setTheme } = useTheme();
@@ -45,20 +51,26 @@ const Navbar = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Link href="/login">
-            <Button variant="outline" className="hidden md:inline-flex">
-              Login
-            </Button>
-          </Link>
-          <Link href="/register">
-            <Button className="hidden md:inline-flex">Register</Button>
-          </Link>
-
-          {/* Mobile Menu */}
-          <div className="md:hidden">
-            <NavigationSheet />
-          </div>
+          <NavigationMenu>
+            <NavigationMenuList className="gap-6 space-x-0 data-[orientation=vertical]:flex-col data-[orientation=vertical]:items-start">
+              <NavigationMenuItem>
+                <NavigationMenuLink asChild>
+                  <Link href="/login">Login</Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+              <NavigationMenuItem>
+                <NavigationMenuLink asChild>
+                  <Link href="/register">Register</Link>
+                </NavigationMenuLink>
+              </NavigationMenuItem>
+            </NavigationMenuList>
+          </NavigationMenu>
         </div>
+        {/* Mobile Menu */}
+        <div className="md:hidden">
+          <NavigationSheet />
+        </div>
+        {/* Close the main flex container */}
       </div>
     </nav>
   );
