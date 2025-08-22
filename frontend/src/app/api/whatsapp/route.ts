@@ -143,27 +143,27 @@ export async function POST(req: NextRequest) {
             );
           }
 
-          await transfer(sender.publicKey, recipient.publicKey, amount, sender.secret);
+          // await transfer(sender.publicKey, recipient.publicKey, amount, sender.secret);
 
-          await prisma.$transaction([
-            prisma.user.update({
-              where: { id: sender.id },
-              data: { balance: { decrement: parseInt(amount) } },
-            }),
-            prisma.user.update({
-              where: { id: recipient.id },
-              data: { balance: { increment: parseInt(amount) } },
-            }),
-            prisma.transaction.create({
-              data: {
-                userId: sender.id,
-                amount: parseInt(amount),
-                phone: formattedRecipientPhone,
-                status: "SUCCESS",
-                type: "SEND",
-              },
-            }),
-          ]);
+          // await prisma.$transaction([
+          //   prisma.user.update({
+          //     where: { id: sender.id },
+          //     data: { balance: { decrement: parseInt(amount) } },
+          //   }),
+          //   prisma.user.update({
+          //     where: { id: recipient.id },
+          //     data: { balance: { increment: parseInt(amount) } },
+          //   }),
+          //   prisma.transaction.create({
+          //     data: {
+          //       userId: sender.id,
+          //       amount: parseInt(amount),
+          //       phone: formattedRecipientPhone,
+          //       status: "SUCCESS",
+          //       type: "SEND",
+          //     },
+          //   }),
+          // ]);
 
           await sendWhatsAppMessage(
             formattedFrom,
