@@ -13,7 +13,7 @@ export async function createSession(userId: number) {
     },
   });
 
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   cookieStore.set("sessionId", session.id, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production", // Use secure cookies in production
