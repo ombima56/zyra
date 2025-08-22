@@ -151,28 +151,54 @@ export default function AboutPage() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-              <Card className="p-6 text-center">
+              {/* Hilary Okello */}
+              <Card className="p-6 text-center flex flex-col items-center">
+                <div className="rounded-full overflow-hidden w-32 h-32 mb-4">
+                  <img
+                    src="/assets/image.png"
+                    alt="Portrait of Hilary Okello"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
                 <CardTitle className="text-xl font-semibold text-foreground mb-2">
                   Hilary Okello
                 </CardTitle>
                 <CardContent className="p-0 text-muted-foreground">
-                  [Brief description of role/expertise]
+                  Product Lead
                 </CardContent>
               </Card>
-              <Card className="p-6 text-center">
+
+              {/* Quinter Ochieng */}
+              <Card className="p-6 text-center flex flex-col items-center">
+                <div className="rounded-full overflow-hidden w-32 h-32 mb-4">
+                  <img
+                    src="/assets/quinter.png"
+                    alt="Portrait of Quinter Ochieng"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
                 <CardTitle className="text-xl font-semibold text-foreground mb-2">
                   Quinter Ochieng
                 </CardTitle>
                 <CardContent className="p-0 text-muted-foreground">
-                  [Brief description of role/expertise]
+                  Frontend Developer
                 </CardContent>
               </Card>
-              <Card className="p-6 text-center">
+
+              {/* Hillary Ombima */}
+              <Card className="p-6 text-center flex flex-col items-center">
+                <div className="rounded-full overflow-hidden w-32 h-32 mb-4">
+                  <img
+                    src="/assets/ombima.png"
+                    alt="Portrait of Hillary Ombima"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
                 <CardTitle className="text-xl font-semibold text-foreground mb-2">
                   Hillary Ombima
                 </CardTitle>
                 <CardContent className="p-0 text-muted-foreground">
-                  [Brief description of role/expertise]
+                  Blockchain Developer
                 </CardContent>
               </Card>
             </div>
