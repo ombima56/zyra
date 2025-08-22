@@ -37,31 +37,31 @@ export default function AboutPage() {
         <div className="grid lg:grid-cols-2 gap-8 sm:gap-12">
           <Card>
             <CardHeader>
-              <CardTitle className="text-2xl sm:text-3xl font-bold mb-4 text-destructive">
+              <CardTitle className="text-2xl sm:text-3xl font-bold mb-4 text-primary">
                 The Problem
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-muted-foreground">
-                <span className="font-semibold text-destructive">
+                <span className="font-semibold text-primary">
                   8.37% average fees
                 </span>{" "}
                 for remittances in Sub-Saharan Africa - the world's most
                 expensive
               </p>
               <p className="text-muted-foreground">
-                <span className="font-semibold text-destructive">
+                <span className="font-semibold text-primary">
                   $300+ billion
                 </span>{" "}
                 in cross-border payments needed across Africa in 2025
               </p>
               <p className="text-muted-foreground">
                 Despite{" "}
-                <span className="font-semibold text-destructive">
+                <span className="font-semibold text-primary">
                   72% smartphone penetration
                 </span>{" "}
                 in Kenya, only{" "}
-                <span className="font-semibold text-destructive">2.23%</span>{" "}
+                <span className="font-semibold text-primary">2.23%</span>{" "}
                 use cryptocurrency
               </p>
             </CardContent>
