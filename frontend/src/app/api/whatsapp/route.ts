@@ -31,14 +31,22 @@ export async function POST(req: NextRequest) {
         body.entry[0].changes[0].value.messages[0]
       ) {
         const from = body.entry[0].changes[0].value.messages[0].from;
-        const message = body.entry[0].changes[0].value.messages[0].text.body;
+        const message = body.entry[0].changes[0].value.messages[0];
 
-        console.log(`Received message: "${message}" from: ${from}`);
+        console.log(`Received message: "${JSON.stringify(message)}" from: ${from}`);
 
         const formattedFrom = formatPhoneNumber(from);
 
+        let messageText = '';
+        if (message.text) {
+          messageText = message.text.body;
+        } else if (message.interactive && message.interactive.button_reply) {
+          messageText = message.interactive.button_reply.id;
+        }
+
+
         // 1. Verification Logic
-        const verificationCode = message.trim();
+        const verificationCode = messageText.trim();
         if (/^\d{6}$/.test(verificationCode)) {
           console.log(`Received verification code: ${verificationCode}`);
           const user = await prisma.user.findFirst({
@@ -58,9 +66,58 @@ export async function POST(req: NextRequest) {
               },
             });
             console.log(`User ${user.phone} verified successfully.`);
+            const welcomeMessage = `*Welcome to Zyra!*
+
+Your account has been verified successfully!
+
+Here's a quick overview of what you can do:
+
+*DEPOSIT:* Add funds to your account via M-Pesa.
+*SEND:* Transfer funds to other Zyra users instantly.
+*BALANCE:* Check your current account balance.
+
+Select an option below to get started:`;
+
+            const interactiveMessage = {
+              type: "button",
+              header: {
+                type: "text",
+                text: "Account Verified"
+              },
+              body: {
+                text: welcomeMessage
+              },
+              action: {
+                buttons: [
+                  {
+                    type: "reply",
+                    reply: {
+                      id: "deposit",
+                      title: "Deposit"
+                    }
+                  },
+                  {
+                    type: "reply",
+                    reply: {
+                      id: "send",
+                      title: "Send"
+                    }
+                  },
+                  {
+                    type: "reply",
+                    reply: {
+                      id: "balance",
+                      title: "Check Balance"
+                    }
+                  }
+                ]
+              }
+            };
+
             await sendWhatsAppMessage(
               formattedFrom,
-              "Your account has been verified successfully!\n\nTo deposit money, send: deposit <amount>\nTo send money, send: send <amount> to <phone_number>"
+              undefined,
+              interactiveMessage
             );
             console.log(`Sent verification confirmation to ${formattedFrom}`);
           } else {
@@ -69,9 +126,17 @@ export async function POST(req: NextRequest) {
         }
 
         // 2. Deposit Logic
-        else if (message.toLowerCase().startsWith("deposit")) {
-          const amount = message.split(" ")[1];
+        else if (messageText.toLowerCase().startsWith("deposit")) {
+          const amount = messageText.split(" ")[1];
           if (!amount || isNaN(parseInt(amount))) {
+            // If the user just clicked the "Deposit" button, ask for the amount
+            if (messageText.toLowerCase() === "deposit") {
+              await sendWhatsAppMessage(
+                formattedFrom,
+                "Please enter the amount you want to deposit, e.g., *deposit 100*"
+              );
+              return new NextResponse(null, { status: 200 });
+            }
             return NextResponse.json(
               { message: "Invalid deposit amount" },
               { status: 400 }
@@ -108,12 +173,20 @@ export async function POST(req: NextRequest) {
         }
 
         // 3. Send Logic
-        else if (message.toLowerCase().startsWith("send")) {
-          const parts = message.split(" ");
+        else if (messageText.toLowerCase().startsWith("send")) {
+          const parts = messageText.split(" ");
           const amount = parts[1];
           const recipientPhone = parts[3];
 
           if (!amount || isNaN(parseInt(amount)) || !recipientPhone) {
+            // If the user just clicked the "Send" button, ask for the details
+            if (messageText.toLowerCase() === "send") {
+              await sendWhatsAppMessage(
+                formattedFrom,
+                "Please enter the amount and recipient, e.g., *send 100 to +254712345678*"
+              );
+              return new NextResponse(null, { status: 200 });
+            }
             return NextResponse.json(
               { message: "Invalid send command. Use 'send <amount> to <phone>'" },
               { status: 400 }
@@ -143,38 +216,156 @@ export async function POST(req: NextRequest) {
             );
           }
 
-          // await transfer(sender.publicKey, recipient.publicKey, amount, sender.secret);
+          await transfer(sender.publicKey, recipient.publicKey, amount, sender.encryptedSecretKey!);
 
-          // await prisma.$transaction([
-          //   prisma.user.update({
-          //     where: { id: sender.id },
-          //     data: { balance: { decrement: parseInt(amount) } },
-          //   }),
-          //   prisma.user.update({
-          //     where: { id: recipient.id },
-          //     data: { balance: { increment: parseInt(amount) } },
-          //   }),
-          //   prisma.transaction.create({
-          //     data: {
-          //       userId: sender.id,
-          //       amount: parseInt(amount),
-          //       phone: formattedRecipientPhone,
-          //       status: "SUCCESS",
-          //       type: "SEND",
-          //     },
-          //   }),
-          // ]);
+          await prisma.$transaction([
+            prisma.user.update({
+              where: { id: sender.id },
+              data: { balance: { decrement: parseInt(amount) } },
+            }),
+            prisma.user.update({
+              where: { id: recipient.id },
+              data: { balance: { increment: parseInt(amount) } },
+            }),
+            prisma.transaction.create({
+              data: {
+                userId: sender.id,
+                amount: parseInt(amount),
+                phone: formattedRecipientPhone,
+                status: "SUCCESS",
+                type: "SEND",
+              },
+            }),
+          ]);
 
           await sendWhatsAppMessage(
             formattedFrom,
-            `Successfully sent ${amount} to ${formattedRecipientPhone}`
+            `🎉 Congratulations! You have successfully sent ${amount} XLM to ${formattedRecipientPhone}. 🎉`
           );
           await sendWhatsAppMessage(
             formattedRecipientPhone,
-            `You have received ${amount} from ${sender.phone}`
+            `🎉 You have received ${amount} XLM from ${sender.phone}. 🎉`
           );
-        } else {
-          console.log("No command matched.");
+        }
+        // 4. Balance Logic
+        else if (messageText.toLowerCase().startsWith("balance")) {
+            const user = await prisma.user.findUnique({ where: { phone: formattedFrom } });
+            if (!user) {
+                return NextResponse.json({ message: "User not found" }, { status: 404 });
+            }
+
+            await sendWhatsAppMessage(
+                formattedFrom,
+                `Your current balance is: ${user.balance} XLM`
+            );
+        }
+
+        // 5. History Logic
+        else if (messageText.toLowerCase().startsWith("history")) {
+            const user = await prisma.user.findUnique({ where: { phone: formattedFrom } });
+            if (!user) {
+                return NextResponse.json({ message: "User not found" }, { status: 404 });
+            }
+
+            const transactions = await prisma.transaction.findMany({
+                where: { userId: user.id },
+                orderBy: { createdAt: 'desc' },
+                take: 10,
+            });
+
+            if (transactions.length === 0) {
+                await sendWhatsAppMessage(
+                    formattedFrom,
+                    "You have no transactions yet."
+                );
+                return new NextResponse(null, { status: 200 });
+            }
+
+            let historyMessage = "*Your Last 10 Transactions:*\n\n";
+            for (const tx of transactions) {
+                historyMessage += `*${tx.type}* - ${tx.amount} XLM - ${tx.createdAt.toDateString()}\n`;
+            }
+
+            await sendWhatsAppMessage(
+                formattedFrom,
+                historyMessage
+            );
+        }
+
+        // 6. More Options Logic
+        else if (messageText.toLowerCase() === "more_options") {
+            const moreOptionsMessage = `Here are more options:`;
+
+            const interactiveMessage = {
+                type: "button",
+                body: {
+                    text: moreOptionsMessage
+                },
+                action: {
+                    buttons: [
+                        {
+                            type: "reply",
+                            reply: {
+                                id: "balance",
+                                title: "Check Balance"
+                            }
+                        },
+                        {
+                            type: "reply",
+                            reply: {
+                                id: "history",
+                                title: "Transaction History"
+                            }
+                        }
+                    ]
+                }
+            };
+
+            await sendWhatsAppMessage(
+                formattedFrom,
+                undefined,
+                interactiveMessage
+            );
+        }
+        
+        else {
+          const interactiveMessage = {
+            type: "button",
+            body: {
+              text: "Sorry, I don't understand that command. Please use one of the options below:"
+            },
+            action: {
+              buttons: [
+                {
+                  type: "reply",
+                  reply: {
+                    id: "deposit",
+                    title: "Deposit"
+                  }
+                },
+                {
+                  type: "reply",
+                  reply: {
+                    id: "send",
+                    title: "Send"
+                  }
+                },
+                {
+                  type: "reply",
+                  reply: {
+                    id: "more_options",
+                    title: "More"
+                  }
+                }
+              ]
+            }
+          };
+
+          await sendWhatsAppMessage(
+            formattedFrom,
+            undefined,
+            interactiveMessage
+          );
         }
       }
     }

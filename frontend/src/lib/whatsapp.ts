@@ -3,7 +3,7 @@ import axios, { AxiosError } from 'axios';
 const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
-export async function sendWhatsAppMessage(to: string, message: string) {
+export async function sendWhatsAppMessage(to: string, message?: string, interactive?: any) {
   if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
     console.error("WhatsApp credentials are not configured in the .env file.");
     // Fallback to console logging if credentials are not set
@@ -11,17 +11,25 @@ export async function sendWhatsAppMessage(to: string, message: string) {
     return;
   }
 
+  const payload: any = {
+    messaging_product: "whatsapp",
+    to: to,
+  };
+
+  if (interactive) {
+    payload.type = "interactive";
+    payload.interactive = interactive;
+  } else {
+    payload.type = "text";
+    payload.text = {
+      body: message,
+    };
+  }
+
   try {
     await axios.post(
       `https://graph.facebook.com/v19.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`,
-      {
-        messaging_product: "whatsapp",
-        to: to,
-        type: "text",
-        text: {
-          body: message,
-        },
-      },
+      payload,
       {
         headers: {
           Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
