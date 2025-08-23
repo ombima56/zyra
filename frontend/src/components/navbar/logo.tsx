@@ -1,20 +1,19 @@
-export const Logo = () => (
-  <svg
-    width="124"
-    height="32"
-    viewBox="0 0 124 32"
-    fill="none"
-    xmlns="http://www.w3.org/2000/svg"
-  >
-    <text
-      x="50%"
-      y="50%"
-      dominantBaseline="middle"
-      textAnchor="middle"
-      fontSize="20"
-      fill="currentColor"
-    >
-      Zyra
-    </text>
-  </svg>
-);
+"use client";
+
+import Image from "next/image";
+import Link from "next/link";
+
+export const Logo = () => {
+  return (
+    <Link href="/" className="flex items-center space-x-2">
+      <Image
+        src="/assets/logo-zrya.png"
+        alt="Zyra Logo"
+        width={45}
+        height={45}
+        priority
+      />
+      <span className="font-semibold text-lg">Zyra</span>
+    </Link>
+  );
+};

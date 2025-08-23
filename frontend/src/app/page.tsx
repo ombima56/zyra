@@ -75,19 +75,30 @@ const LandingPage = () => {
             </CardHeader>
             <CardContent className="p-4 space-y-4">
               <Alert className="bg-secondary">
-                <AlertTitle>Alice</AlertTitle>
+                <AlertTitle>You</AlertTitle>
+                <AlertDescription>Hey Bob! 👋</AlertDescription>
+              </Alert>
+              <Alert className="bg-secondary">
+                <AlertTitle>You</AlertTitle>
                 <AlertDescription>
-                  Hey, I need to send you 500 KES.
+                  Can you lend me 500 KES? I need to buy groceries 🛒
                 </AlertDescription>
               </Alert>
               <Alert className="bg-accent text-primary-foreground">
-                <AlertTitle>You</AlertTitle>
+                <AlertTitle>Bob</AlertTitle>
                 <AlertDescription className="dark:text-secondary">
-                  No problem, just use Zyra. Send 500 KES to @alice.
+                  Of course! No problem. Just use Zyra.
+                </AlertDescription>
+              </Alert>
+              <Alert className="bg-secondary">
+                <AlertTitle>You</AlertTitle>
+                <AlertDescription>
+                  Thank you so much! You're the best! 🙏
                 </AlertDescription>
               </Alert>
             </CardContent>
           </Card>
+
           <Card className="w-72 h-[560px] rounded-[2.5rem] shadow-[0_-5px_10px_rgba(var(--accent-rgb),0.5)]">
             <CardHeader>
               <CardTitle className="text-center">Zyra</CardTitle>
@@ -96,30 +107,57 @@ const LandingPage = () => {
               <Alert className="bg-accent text-primary-foreground">
                 <AlertTitle>You</AlertTitle>
                 <AlertDescription className="dark:text-secondary">
-                  Okay, sending now...
+                  Send 500 KES to Alice
                 </AlertDescription>
               </Alert>
               <Alert className="bg-secondary">
                 <AlertTitle>Zyra</AlertTitle>
-                <AlertDescription>You sent 500 KES to Alice.</AlertDescription>
+                <AlertDescription>
+                  ✅ Processing payment...
+                  <br />
+                  Amount: 500 KES
+                  <br />
+                  To: Alice (+254712345678)
+                </AlertDescription>
               </Alert>
               <Alert className="bg-secondary">
-                <AlertTitle>Alice</AlertTitle>
+                <AlertTitle>Zyra</AlertTitle>
                 <AlertDescription>
-                  Wow, that was fast! Received.
+                  🎉 Payment Successful! You sent 500 KES to Alice.
+                  <br />
+                  Transaction ID: ZYR123456
                 </AlertDescription>
               </Alert>
             </CardContent>
           </Card>
+
           <Card className="w-64 h-[480px] rounded-[2.5rem] shadow-[0_-5px_10px_rgba(var(--accent-rgb),0.5)]">
             <CardHeader>
               <CardTitle className="text-center">Bob</CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-4">
+              <Alert className="bg-secondary">
+                <AlertTitle>Alice</AlertTitle>
+                <AlertDescription>
+                  Can you lend me 500 KES? I need to buy groceries 🛒
+                </AlertDescription>
+              </Alert>
               <Alert className="bg-accent text-primary-foreground">
                 <AlertTitle>You</AlertTitle>
                 <AlertDescription className="dark:text-secondary">
-                  Perfect! Zyra is amazing.
+                  Of course! Sending via Zyra now...
+                </AlertDescription>
+              </Alert>
+              <Alert className="bg-accent text-primary-foreground">
+                <AlertTitle>You</AlertTitle>
+                <AlertDescription className="dark:text-secondary">
+                  ✅ Sent! Check your M-Pesa.
+                </AlertDescription>
+              </Alert>
+              <Alert className="bg-secondary">
+                <AlertTitle>Alice</AlertTitle>
+                <AlertDescription>
+                  Wow! That was so fast! Zyra is amazing!
                 </AlertDescription>
               </Alert>
             </CardContent>
@@ -141,15 +179,25 @@ const LandingPage = () => {
                   </CardHeader>
                   <CardContent className="p-4 space-y-4">
                     <Alert className="bg-secondary">
-                      <AlertTitle>Alice</AlertTitle>
+                      <AlertTitle>You</AlertTitle>
+                      <AlertDescription>Hey Bob! 👋</AlertDescription>
+                    </Alert>
+                    <Alert className="bg-secondary">
+                      <AlertTitle>You</AlertTitle>
                       <AlertDescription>
-                        Hey, I need to send you 500 KES.
+                        Can you lend me 500 KES? I need to buy groceries 🛒
                       </AlertDescription>
                     </Alert>
                     <Alert className="bg-accent text-primary-foreground">
-                      <AlertTitle>You</AlertTitle>
+                      <AlertTitle>Bob</AlertTitle>
                       <AlertDescription className="dark:text-secondary">
-                        No problem, just use Zyra. Send 500 KES to @alice.
+                        Of course! No problem. Just use Zyra.
+                      </AlertDescription>
+                    </Alert>
+                    <Alert className="bg-secondary">
+                      <AlertTitle>You</AlertTitle>
+                      <AlertDescription>
+                        Thank you so much! You're the best! 🙏
                       </AlertDescription>
                     </Alert>
                   </CardContent>
@@ -164,19 +212,25 @@ const LandingPage = () => {
                     <Alert className="bg-accent text-primary-foreground">
                       <AlertTitle>You</AlertTitle>
                       <AlertDescription className="dark:text-secondary">
-                        Okay, sending now...
+                        Send 500 KES to Alice
                       </AlertDescription>
                     </Alert>
                     <Alert className="bg-secondary">
                       <AlertTitle>Zyra</AlertTitle>
                       <AlertDescription>
-                        You sent 500 KES to Alice.
+                        ✅ Processing payment...
+                        <br />
+                        Amount: 500 KES
+                        <br />
+                        To: Alice (+254712345678)
                       </AlertDescription>
                     </Alert>
                     <Alert className="bg-secondary">
-                      <AlertTitle>Alice</AlertTitle>
+                      <AlertTitle>Zyra</AlertTitle>
                       <AlertDescription>
-                        Wow, that was fast! Received.
+                        🎉 Payment Successful! You sent 500 KES to Alice.
+                        <br />
+                        Transaction ID: ZYR123456
                       </AlertDescription>
                     </Alert>
                   </CardContent>
@@ -188,10 +242,28 @@ const LandingPage = () => {
                     <CardTitle className="text-center">Bob</CardTitle>
                   </CardHeader>
                   <CardContent className="p-4 space-y-4">
+                    <Alert className="bg-secondary">
+                      <AlertTitle>Alice</AlertTitle>
+                      <AlertDescription>
+                        Can you lend me 500 KES? I need to buy groceries 🛒
+                      </AlertDescription>
+                    </Alert>
                     <Alert className="bg-accent text-primary-foreground">
                       <AlertTitle>You</AlertTitle>
                       <AlertDescription className="dark:text-secondary">
-                        Perfect! Zyra is amazing.
+                        Of course! Sending via Zyra now...
+                      </AlertDescription>
+                    </Alert>
+                    <Alert className="bg-accent text-primary-foreground">
+                      <AlertTitle>You</AlertTitle>
+                      <AlertDescription className="dark:text-secondary">
+                        ✅ Sent! Check your M-Pesa.
+                      </AlertDescription>
+                    </Alert>
+                    <Alert className="bg-secondary">
+                      <AlertTitle>Alice</AlertTitle>
+                      <AlertDescription>
+                        Wow! That was so fast! Zyra is amazing!
                       </AlertDescription>
                     </Alert>
                   </CardContent>
