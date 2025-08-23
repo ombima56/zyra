@@ -19,9 +19,19 @@ import {
   NavigationMenuLink,
   NavigationMenuList,
 } from "../ui/navigation-menu";
+import { useAuth } from "@/contexts/AuthContext";
+import { useRouter } from "next/navigation";
 
 const Navbar = () => {
   const { setTheme } = useTheme();
+  const { secretKey, setSecretKey } = useAuth();
+  const router = useRouter();
+
+  const handleLogout = () => {
+    setSecretKey(null);
+    router.push("/");
+  };
+
   return (
     <nav className="fixed z-10 top-6 inset-x-4 h-14 xs:h-16 bg-background/50 backdrop-blur-sm border dark:border-slate-700/70 max-w-screen-xl mx-auto rounded-lg">
       <div className="h-full flex items-center justify-between mx-auto px-4">
@@ -53,16 +63,33 @@ const Navbar = () => {
           </DropdownMenu>
           <NavigationMenu>
             <NavigationMenuList className="gap-6 space-x-0 data-[orientation=vertical]:flex-col data-[orientation=vertical]:items-start">
-              <NavigationMenuItem>
-                <NavigationMenuLink asChild>
-                  <Link href="/login">Login</Link>
-                </NavigationMenuLink>
-              </NavigationMenuItem>
-              <NavigationMenuItem>
-                <NavigationMenuLink asChild>
-                  <Link href="/register">Register</Link>
-                </NavigationMenuLink>
-              </NavigationMenuItem>
+              {secretKey ? (
+                <>
+                  <NavigationMenuItem>
+                    <NavigationMenuLink asChild>
+                      <Link href="/dashboard">Wallet</Link>
+                    </NavigationMenuLink>
+                  </NavigationMenuItem>
+                  <NavigationMenuItem>
+                    <Button onClick={handleLogout} variant="ghost">
+                      Logout
+                    </Button>
+                  </NavigationMenuItem>
+                </>
+              ) : (
+                <>
+                  <NavigationMenuItem>
+                    <NavigationMenuLink asChild>
+                      <Link href="/login">Login</Link>
+                    </NavigationMenuLink>
+                  </NavigationMenuItem>
+                  <NavigationMenuItem>
+                    <NavigationMenuLink asChild>
+                      <Link href="/register">Register</Link>
+                    </NavigationMenuLink>
+                  </NavigationMenuItem>
+                </>
+              )}
             </NavigationMenuList>
           </NavigationMenu>
         </div>
