@@ -55,8 +55,8 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-          <Navbar />
           <AuthProvider>
+            <Navbar />
             <NotificationProvider>{children}</NotificationProvider>
           </AuthProvider>
           <Toaster />
