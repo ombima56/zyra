@@ -2,7 +2,7 @@
 // src/app/api/mpesa/callback/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { deposit } from '@/lib/stellar';
+
 import { sendWhatsAppMessage } from '@/lib/whatsapp';
 
 export async function POST(req: NextRequest) {
@@ -57,26 +57,29 @@ export async function POST(req: NextRequest) {
 
       console.log(`Transaction ${transaction.id} successful. M-Pesa Receipt: ${mpesaReceiptNumber}`);
 
-      // Fund the user's Stellar account
-      await deposit(
-        transaction.user.publicKey,
-        transaction.amount.toString(),
-        process.env.ADMIN_SECRET_KEY!
-      );
+      // Fund the user's Stellar account from the testnet faucet
+      const friendbotUrl = `https://friendbot.stellar.org?addr=${transaction.user.publicKey}`;
+      const response = await fetch(friendbotUrl);
+
+      if (!response.ok) {
+        console.error("Friendbot error:", await response.text());
+        throw new Error("Failed to fund account from friendbot");
+      }
 
       // Update user balance
+      const fundedAmount = 10000;
       await prisma.user.update({
         where: { id: transaction.userId },
         data: {
           balance: {
-            increment: transaction.amount,
+            increment: fundedAmount,
           },
         },
       });
 
-      console.log(`User ${transaction.userId} balance updated with ${transaction.amount}`);
+      console.log(`User ${transaction.userId} balance updated with ${fundedAmount} XLM`);
 
-      await sendWhatsAppMessage(transaction.user.phone, `Your account has been funded with ${transaction.amount} XLM.`);
+      await sendWhatsAppMessage(transaction.user.phone, `🎉 Congratulations! Your account has been funded with ${fundedAmount} XLM from the testnet faucet. 🎉`);
 
     } else {
       console.error(`Transaction ${transaction.id} failed. Reason: ${ResultDesc}`);
