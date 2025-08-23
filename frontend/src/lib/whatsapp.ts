@@ -3,7 +3,7 @@ import axios, { AxiosError } from 'axios';
 const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
 const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
-export async function sendWhatsAppMessage(to: string, message: string, interactive?: any) {
+export async function sendWhatsAppMessage(to: string, message?: string, interactive?: any) {
   if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
     console.error("WhatsApp credentials are not configured in the .env file.");
     // Fallback to console logging if credentials are not set

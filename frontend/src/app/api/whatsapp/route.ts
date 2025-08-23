@@ -116,7 +116,7 @@ Select an option below to get started:`;
 
             await sendWhatsAppMessage(
               formattedFrom,
-              welcomeMessage,
+              undefined,
               interactiveMessage
             );
             console.log(`Sent verification confirmation to ${formattedFrom}`);
@@ -216,7 +216,7 @@ Select an option below to get started:`;
             );
           }
 
-          await transfer(sender.publicKey, recipient.publicKey, amount, sender.secret);
+          await transfer(sender.publicKey, recipient.publicKey, amount, sender.encryptedSecretKey!);
 
           await prisma.$transaction([
             prisma.user.update({
@@ -247,7 +247,6 @@ Select an option below to get started:`;
             `🎉 You have received ${amount} XLM from ${sender.phone}. 🎉`
           );
         }
-        
         // 4. Balance Logic
         else if (messageText.toLowerCase().startsWith("balance")) {
             const user = await prisma.user.findUnique({ where: { phone: formattedFrom } });
@@ -260,9 +259,113 @@ Select an option below to get started:`;
                 `Your current balance is: ${user.balance} XLM`
             );
         }
+
+        // 5. History Logic
+        else if (messageText.toLowerCase().startsWith("history")) {
+            const user = await prisma.user.findUnique({ where: { phone: formattedFrom } });
+            if (!user) {
+                return NextResponse.json({ message: "User not found" }, { status: 404 });
+            }
+
+            const transactions = await prisma.transaction.findMany({
+                where: { userId: user.id },
+                orderBy: { createdAt: 'desc' },
+                take: 10,
+            });
+
+            if (transactions.length === 0) {
+                await sendWhatsAppMessage(
+                    formattedFrom,
+                    "You have no transactions yet."
+                );
+                return new NextResponse(null, { status: 200 });
+            }
+
+            let historyMessage = "*Your Last 10 Transactions:*\n\n";
+            for (const tx of transactions) {
+                historyMessage += `*${tx.type}* - ${tx.amount} XLM - ${tx.createdAt.toDateString()}\n`;
+            }
+
+            await sendWhatsAppMessage(
+                formattedFrom,
+                historyMessage
+            );
+        }
+
+        // 6. More Options Logic
+        else if (messageText.toLowerCase() === "more_options") {
+            const moreOptionsMessage = `Here are more options:`;
+
+            const interactiveMessage = {
+                type: "button",
+                body: {
+                    text: moreOptionsMessage
+                },
+                action: {
+                    buttons: [
+                        {
+                            type: "reply",
+                            reply: {
+                                id: "balance",
+                                title: "Check Balance"
+                            }
+                        },
+                        {
+                            type: "reply",
+                            reply: {
+                                id: "history",
+                                title: "Transaction History"
+                            }
+                        }
+                    ]
+                }
+            };
+
+            await sendWhatsAppMessage(
+                formattedFrom,
+                undefined,
+                interactiveMessage
+            );
+        }
         
         else {
-          console.log("No command matched.");
+          const interactiveMessage = {
+            type: "button",
+            body: {
+              text: "Sorry, I don't understand that command. Please use one of the options below:"
+            },
+            action: {
+              buttons: [
+                {
+                  type: "reply",
+                  reply: {
+                    id: "deposit",
+                    title: "Deposit"
+                  }
+                },
+                {
+                  type: "reply",
+                  reply: {
+                    id: "send",
+                    title: "Send"
+                  }
+                },
+                {
+                  type: "reply",
+                  reply: {
+                    id: "more_options",
+                    title: "More"
+                  }
+                }
+              ]
+            }
+          };
+
+          await sendWhatsAppMessage(
+            formattedFrom,
+            undefined,
+            interactiveMessage
+          );
         }
       }
     }

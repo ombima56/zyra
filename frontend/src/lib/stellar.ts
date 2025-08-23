@@ -325,13 +325,6 @@ export const submitSignedTransaction = async (
   }
 };
 
-/**
- * Transfers tokens from one user to another via the smart contract.
- * @param from - Source address
- * @param to - Destination address
- * @param amount - Amount as decimal string (e.g., "1.50")
- * @param secretKey - Secret key for signing
- */
 export const transfer = async (
   from: string,
   to: string,
