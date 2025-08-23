@@ -61,41 +61,42 @@ const Navbar = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <NavigationMenu>
-            <NavigationMenuList className="gap-6 space-x-0 data-[orientation=vertical]:flex-col data-[orientation=vertical]:items-start">
-              {secretKey ? (
-                <>
-                  <NavigationMenuItem>
-                    <NavigationMenuLink asChild>
-                      <Link href="/dashboard">Wallet</Link>
-                    </NavigationMenuLink>
-                  </NavigationMenuItem>
-                  <NavigationMenuItem>
-                    <Button onClick={handleLogout} variant="ghost">
-                      Logout
-                    </Button>
-                  </NavigationMenuItem>
-                </>
-              ) : (
-                <>
-                  <NavigationMenuItem>
-                    <NavigationMenuLink asChild>
-                      <Link href="/login">Login</Link>
-                    </NavigationMenuLink>
-                  </NavigationMenuItem>
-                  <NavigationMenuItem>
-                    <NavigationMenuLink asChild>
-                      <Link href="/register">Register</Link>
-                    </NavigationMenuLink>
-                  </NavigationMenuItem>
-                </>
-              )}
-            </NavigationMenuList>
-          </NavigationMenu>
-        </div>
-        {/* Mobile Menu */}
-        <div className="md:hidden">
-          <NavigationSheet />
+          <div className="hidden md:block">
+            <NavigationMenu>
+              <NavigationMenuList className="gap-6 space-x-0 data-[orientation=vertical]:flex-col data-[orientation=vertical]:items-start">
+                {secretKey ? (
+                  <>
+                    <NavigationMenuItem>
+                      <NavigationMenuLink asChild>
+                        <Link href="/dashboard">Wallet</Link>
+                      </NavigationMenuLink>
+                    </NavigationMenuItem>
+                    <NavigationMenuItem>
+                      <Button onClick={handleLogout} variant="ghost">
+                        Logout
+                      </Button>
+                    </NavigationMenuItem>
+                  </>
+                ) : (
+                  <>
+                    <NavigationMenuItem>
+                      <NavigationMenuLink asChild>
+                        <Link href="/login">Login</Link>
+                      </NavigationMenuLink>
+                    </NavigationMenuItem>
+                    <NavigationMenuItem>
+                      <NavigationMenuLink asChild>
+                        <Link href="/register">Register</Link>
+                      </NavigationMenuLink>
+                    </NavigationMenuItem>
+                  </>
+                )}
+              </NavigationMenuList>
+            </NavigationMenu>
+          </div>
+          <div className="md:hidden">
+            <NavigationSheet />
+          </div>
         </div>
         {/* Close the main flex container */}
       </div>
