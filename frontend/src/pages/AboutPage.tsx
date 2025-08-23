@@ -164,7 +164,7 @@ export default function AboutPage() {
                   Hilary Okello
                 </CardTitle>
                 <CardContent className="p-0 text-muted-foreground">
-                  Product Lead
+                  Software Engineer and Product Lead
                 </CardContent>
               </Card>
 
@@ -178,10 +178,10 @@ export default function AboutPage() {
                   />
                 </div>
                 <CardTitle className="text-xl font-semibold text-foreground mb-2">
-                  Quinter Ochieng
+                  Quinter Abok
                 </CardTitle>
                 <CardContent className="p-0 text-muted-foreground">
-                  Frontend Developer
+                  Software Engineer
                 </CardContent>
               </Card>
 
@@ -198,7 +198,7 @@ export default function AboutPage() {
                   Hillary Ombima
                 </CardTitle>
                 <CardContent className="p-0 text-muted-foreground">
-                  Blockchain Developer
+                  Blockchain Engineer
                 </CardContent>
               </Card>
             </div>
