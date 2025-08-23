@@ -98,7 +98,7 @@ export default function Header({ username, onLogout, publicKey }: HeaderProps) {
                       className="w-full text-sm"
                     >
                       <LogOut className="mr-2 h-4 w-4" />
-                      Logout
+                      Disconnect-Wallet
                     </Button>
                   </div>
                 </div>

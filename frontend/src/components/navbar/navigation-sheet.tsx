@@ -13,7 +13,7 @@ export const NavigationSheet = () => {
 
   const handleLogout = () => {
     setSecretKey(null);
-    router.push("/login");
+    router.push("/");
   };
 
   return (

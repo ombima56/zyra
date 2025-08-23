@@ -29,7 +29,7 @@ const Navbar = () => {
 
   const handleLogout = () => {
     setSecretKey(null);
-    router.push("/login");
+    router.push("/");
   };
 
   return (
