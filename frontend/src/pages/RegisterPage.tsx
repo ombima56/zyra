@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import Link from 'next/link';
 import { createKeypair, getKeypairFromMnemonic } from '@/lib/stellar';
-import { Copy } from 'lucide-react';
+import { Copy, Eye, EyeOff } from 'lucide-react';
 import CryptoJS from 'crypto-js';
 
 export default function RegisterPage() {
@@ -21,6 +21,7 @@ export default function RegisterPage() {
   const [mnemonic, setMnemonic] = useState('');
   const [showSeedPhrase, setShowSeedPhrase] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [showMnemonicContent, setShowMnemonicContent] = useState(false);
   const [hasCopiedMnemonic, setHasCopiedMnemonic] = useState(false);
 
   const [mnemonicWords, setMnemonicWords] = useState<string[]>([]);
@@ -170,17 +171,37 @@ export default function RegisterPage() {
                     Please write down your 12-word seed phrase in the correct
                     order. This is the only way to recover your account.
                   </p>
-                  <div className="grid grid-cols-2 gap-3 my-4 p-4 border rounded-lg bg-muted">
-                    {mnemonicWords.map((word, index) => (
-                      <div key={index} className="flex items-center gap-2">
-                        <span className="text-muted-foreground text-sm w-6 text-right">
-                          {index + 1}.
-                        </span>
-                        <span className="text-lg font-mono font-semibold text-foreground">
-                          {word}
-                        </span>
-                      </div>
-                    ))}
+                  <div className="relative">
+                    <div
+                      className={`grid grid-cols-2 gap-3 my-4 p-4 border rounded-lg bg-muted transition-all duration-300 ${
+                        showMnemonicContent ? 'filter-none' : 'blur-sm'
+                      }`}
+                    >
+                      {mnemonicWords.map((word, index) => (
+                        <div key={index} className="flex items-center gap-2">
+                          <span className="text-muted-foreground text-sm w-6 text-right">
+                            {index + 1}.
+                          </span>
+                          <span className="text-lg font-mono font-semibold text-foreground">
+                            {showMnemonicContent ? word : '*****'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="absolute top-2 right-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowMnemonicContent(!showMnemonicContent)}
+                        aria-label={showMnemonicContent ? 'Hide seed phrase' : 'Show seed phrase'}
+                      >
+                        {showMnemonicContent ? (
+                          <EyeOff className="h-5 w-5 text-muted-foreground" />
+                        ) : (
+                          <Eye className="h-5 w-5 text-muted-foreground" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
                   <Button
                     onClick={handleCopyAndProceed}
