@@ -161,7 +161,7 @@ export const MobileSidebar = () => {
 
       <SheetContent
         side="right"
-        className={`${getSidebarWidth()} bg-sidebar shadow-2xl p-0 border-l border-sidebar-border text-sidebar-foreground overflow-y-auto`}
+        className={`${getSidebarWidth()} bg-background/80 backdrop-blur-sm shadow-2xl p-0 border-l border-sidebar-border text-sidebar-foreground overflow-y-auto`}
       >
         <SheetHeader className="sr-only">
           <SheetTitle>Navigation Menu</SheetTitle>
