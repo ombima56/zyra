@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Logo } from "./logo";
 import { NavMenu } from "./nav-menu";
-import { NavigationSheet } from "./navigation-sheet";
+import { MobileSidebar } from "./mobile-sidebar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -95,7 +95,7 @@ const Navbar = () => {
             </NavigationMenu>
           </div>
           <div className="md:hidden">
-            <NavigationSheet />
+            <MobileSidebar />
           </div>
         </div>
         {/* Close the main flex container */}
